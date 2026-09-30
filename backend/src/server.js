@@ -5,7 +5,7 @@ import { pool } from './config/db.js';
 import { logger } from './utils/logger.js';
 import { startExpiryJob } from './jobs/expiry.job.js';
 
-const server = http.createServer(app); // Socket.IO attaches here in Phase 4
+const server = http.createServer(app); 
 
 server.listen(env.PORT, () => logger.info(`API listening on port ${env.PORT}`));
 const stopExpiry = startExpiryJob();
