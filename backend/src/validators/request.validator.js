@@ -25,6 +25,21 @@ export const listRequestsSchema = z.object({
   }),
 });
 
+export const cancelRequestSchema = z.object({
+  params: z.object({ id: z.string().uuid('Invalid request id') }),
+  body: z.object({ reason: z.string().trim().max(300).optional() }).strict(),
+});
+
+export const updateStatusSchema = z.object({
+  params: z.object({ id: z.string().uuid('Invalid request id') }),
+  body: z
+    .object({
+      status: z.enum(['ARRIVING', 'IN_PROGRESS', 'COMPLETED']),
+      note: z.string().trim().max(300).optional(),
+    })
+    .strict(),
+});
+
 export const requestIdSchema = z.object({
   params: z.object({ id: z.string().uuid('Invalid request id') }),
 });

@@ -15,5 +15,7 @@ router.post('/', authorize('USER'), validate(createRequestSchema), wrap(c.create
 router.get('/', authorize('USER'), validate(listRequestsSchema), wrap(c.list));
 router.get('/:id', validate(requestIdSchema), wrap(c.getOne)); // access checked in the service
 router.post('/:id/accept', authorize('HELPER'), validate(requestIdSchema), wrap(c.accept));
+router.post('/:id/cancel', authorize('USER'), validate(cancelRequestSchema), wrap(c.cancel));
+router.patch('/:id/status', authorize('HELPER'), validate(updateStatusSchema), wrap(c.updateStatus));
 
 export default router;

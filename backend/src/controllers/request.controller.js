@@ -13,3 +13,9 @@ export const getOne = async (req, res) =>
 
 export const accept = async (req, res) =>
   res.json({ success: true, data: { request: await svc.acceptRequest(req.params.id, req.user.id) } });
+
+export const cancel = async (req, res) =>
+  res.json({ success: true, data: { request: await svc.cancelRequest(req.params.id, req.user.id, req.body.reason) } });
+
+export const updateStatus = async (req, res) =>
+  res.json({ success: true, data: { request: await svc.updateStatus(req.params.id, req.user.id, req.body.status, req.body.note) } });

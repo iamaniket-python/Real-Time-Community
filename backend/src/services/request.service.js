@@ -192,3 +192,73 @@ export async function listMyRequests(userId, { limit, cursor, status }) {
     nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
   };
 }
+
+const CANCELLABLE = ['PENDING', 'SEARCHING', 'ACCEPTED', 'ARRIVING'];
+const NEXT_STATUS = { ACCEPTED: 'ARRIVING', ARRIVING: 'IN_PROGRESS', IN_PROGRESS: 'COMPLETED' };
+const USER_MESSAGE = {
+  ARRIVING: 'Your helper is arriving',
+  IN_PROGRESS: 'Work on your request has started',
+  COMPLETED: 'Your request is complete',
+};
+
+export async function cancelRequest(requestId, userId, reason) {
+  await withTransaction(async (c) => {
+    const r = (await c.query(
+      `SELECT r.id, r.status, hp.user_id AS helper_user_id
+         FROM help_requests r
+         LEFT JOIN helper_profiles hp ON hp.id = r.accepted_helper_id
+        WHERE r.id = $1 AND r.user_id = $2
+          FOR UPDATE OF r`,
+      [requestId, userId])).rows[0];
+    if (!r) throw notFound('REQUEST_NOT_FOUND', 'Request not found');
+    if (!CANCELLABLE.includes(r.status)) {
+      throw conflict('CANNOT_CANCEL', `A ${r.status.toLowerCase().replace('_', ' ')} request cannot be cancelled`);
+    }
+
+    await c.query(`UPDATE help_requests SET status = 'CANCELLED' WHERE id = $1`, [requestId]);
+    await c.query(
+      `INSERT INTO request_status_history (request_id, from_status, to_status, changed_by, note)
+       VALUES ($1, $2, 'CANCELLED', $3, $4)`,
+      [requestId, r.status, userId, reason ?? null]);
+
+    if (r.helper_user_id) {
+      await c.query(
+        `INSERT INTO notifications (user_id, type, title, data)
+         VALUES ($1, 'REQUEST_CANCELLED', 'The request was cancelled by the user', $2)`,
+        [r.helper_user_id, JSON.stringify({ requestId })]);
+    }
+  });
+  return getRequest(requestId, { id: userId, role: 'USER' });
+}
+
+export async function updateStatus(requestId, helperUserId, target, note) {
+  await withTransaction(async (c) => {
+    const hp = (await c.query('SELECT id FROM helper_profiles WHERE user_id = $1', [helperUserId])).rows[0];
+    const r = (await c.query(
+      `SELECT id, user_id, status, accepted_helper_id FROM help_requests WHERE id = $1 FOR UPDATE`,
+      [requestId])).rows[0];
+    // 404 for both "missing" and "not your job" so ids can't be probed
+    if (!hp || !r || r.accepted_helper_id !== hp.id) {
+      throw notFound('REQUEST_NOT_FOUND', 'Request not found');
+    }
+    if (NEXT_STATUS[r.status] !== target) {
+      throw conflict('INVALID_STATUS_TRANSITION', `Cannot move from ${r.status} to ${target}`);
+    }
+
+    await c.query(
+      `UPDATE help_requests
+          SET status = $2::request_status,
+              completed_at = CASE WHEN $2::request_status = 'COMPLETED' THEN now() ELSE completed_at END
+        WHERE id = $1`,
+      [requestId, target]);
+    await c.query(
+      `INSERT INTO request_status_history (request_id, from_status, to_status, changed_by, note)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [requestId, r.status, target, helperUserId, note ?? null]);
+    await c.query(
+      `INSERT INTO notifications (user_id, type, title, data)
+       VALUES ($1, 'REQUEST_STATUS_CHANGED', $2, $3)`,
+      [r.user_id, USER_MESSAGE[target], JSON.stringify({ requestId, status: target })]);
+  });
+  return getRequest(requestId, { id: helperUserId, role: 'HELPER' });
+}

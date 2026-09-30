@@ -3,17 +3,19 @@ import app from './app.js';
 import { env } from './config/env.js';
 import { pool } from './config/db.js';
 import { logger } from './utils/logger.js';
+import { startExpiryJob } from './jobs/expiry.job.js';
 
-// Socket.IO attaches to this same server in Phase 4
-const server = http.createServer(app);
+const server = http.createServer(app); // Socket.IO attaches here in Phase 4
 
 server.listen(env.PORT, () => logger.info(`API listening on port ${env.PORT}`));
+const stopExpiry = startExpiryJob();
 
-// Graceful shutdown: finish in-flight requests, then close the DB pool
-const shutdown = () =>
+const shutdown = () => {
+  stopExpiry();
   server.close(async () => {
     await pool.end();
     process.exit(0);
   });
+};
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
