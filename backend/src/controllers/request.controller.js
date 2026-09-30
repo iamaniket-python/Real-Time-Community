@@ -19,3 +19,8 @@ export const cancel = async (req, res) =>
 
 export const updateStatus = async (req, res) =>
   res.json({ success: true, data: { request: await svc.updateStatus(req.params.id, req.user.id, req.body.status, req.body.note) } });
+
+export const reject = async (req, res) => {
+  await svc.rejectRequest(req.params.id, req.user.id);
+  res.json({ success: true, data: null });
+};

@@ -1,5 +1,6 @@
 import { query, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
+import { haversineSql } from '../utils/geo.js';
 import { AppError, conflict, notFound, forbidden } from '../utils/AppError.js';
 
 const SELECT = `
@@ -120,11 +121,18 @@ export async function acceptRequest(requestId, helperUserId) {
   try {
     await withTransaction(async (c) => {
       const hp = (await c.query(
-        'SELECT id, verification, is_available FROM helper_profiles WHERE user_id = $1',
-        [helperUserId])).rows[0];
+        `SELECT id, verification, is_available, current_lat, current_lng,
+                (location_updated_at > now() - make_interval(mins => $2::int)) AS location_fresh
+           FROM helper_profiles WHERE user_id = $1`,
+        [helperUserId, env.HELPER_LOCATION_MAX_AGE_MINUTES])).rows[0];
       if (!hp) throw notFound('HELPER_PROFILE_NOT_FOUND', 'Helper profile not found');
       if (hp.verification !== 'VERIFIED') throw forbidden('HELPER_NOT_VERIFIED', 'Your profile is not verified');
       if (!hp.is_available) throw new AppError(409, 'HELPER_OFFLINE', 'Go online to accept requests');
+      if (!hp.location_fresh || hp.current_lat == null) {
+        throw new AppError(409, 'HELPER_LOCATION_UNKNOWN', 'Share your current location to accept requests');
+      }
+
+      const distance = haversineSql('$3::double precision', '$4::double precision', 'r.lat', 'r.lng');
 
       // The atomic step: only one concurrent caller can match this WHERE clause
       const upd = await c.query(
@@ -136,19 +144,26 @@ export async function acceptRequest(requestId, helperUserId) {
             AND (r.expires_at IS NULL OR r.expires_at > now())
             AND EXISTS (SELECT 1 FROM helper_categories hc
                          WHERE hc.helper_id = $2 AND hc.category_id = r.category_id)
+            AND ${distance} <= r.search_radius_km
         RETURNING r.id, r.user_id`,
-        [requestId, hp.id]);
+        [requestId, hp.id, hp.current_lat, hp.current_lng]);
 
       if (!upd.rowCount) {
         // Work out why, so the helper sees a useful error
         const why = (await c.query(
-          `SELECT EXISTS (SELECT 1 FROM helper_categories hc
-                           WHERE hc.helper_id = $2 AND hc.category_id = r.category_id) AS has_cat
+          `SELECT r.status, r.accepted_helper_id, r.expires_at, r.search_radius_km,
+                  EXISTS (SELECT 1 FROM helper_categories hc
+                           WHERE hc.helper_id = $2 AND hc.category_id = r.category_id) AS has_cat,
+                  ${distance} AS distance_km
              FROM help_requests r WHERE r.id = $1`,
-          [requestId, hp.id])).rows[0];
+          [requestId, hp.id, hp.current_lat, hp.current_lng])).rows[0];
+
         if (!why) throw notFound('REQUEST_NOT_FOUND', 'Request not found');
         if (!why.has_cat) throw forbidden('CATEGORY_MISMATCH', 'This request is outside your services');
-        throw conflict('REQUEST_NOT_AVAILABLE', 'This request was already taken or is no longer open');
+        const open = why.status === 'SEARCHING' && !why.accepted_helper_id &&
+          (!why.expires_at || new Date(why.expires_at) > new Date());
+        if (!open) throw conflict('REQUEST_NOT_AVAILABLE', 'This request was already taken or is no longer open');
+        throw conflict('OUT_OF_RANGE', 'This request is outside your service area');
       }
 
       const { user_id: requesterId } = upd.rows[0];
@@ -261,4 +276,44 @@ export async function updateStatus(requestId, helperUserId, target, note) {
       [r.user_id, USER_MESSAGE[target], JSON.stringify({ requestId, status: target })]);
   });
   return getRequest(requestId, { id: helperUserId, role: 'HELPER' });
+}
+
+export async function rejectRequest(requestId, helperUserId) {
+  const hp = (await query('SELECT id FROM helper_profiles WHERE user_id = $1', [helperUserId])).rows[0];
+  if (!hp) throw notFound('HELPER_PROFILE_NOT_FOUND', 'Helper profile not found');
+
+  // Only requests this helper could actually see can be rejected
+  await query(
+    `INSERT INTO request_rejections (request_id, helper_id)
+     SELECT r.id, $2 FROM help_requests r
+      WHERE r.id = $1 AND r.status = 'SEARCHING'
+        AND EXISTS (SELECT 1 FROM helper_categories hc
+                     WHERE hc.helper_id = $2 AND hc.category_id = r.category_id)
+     ON CONFLICT DO NOTHING`,
+    [requestId, hp.id]);
+
+  // Rejecting twice is fine (idempotent); rejecting something unknown is a 404
+  const done = await query(
+    'SELECT 1 FROM request_rejections WHERE request_id = $1 AND helper_id = $2', [requestId, hp.id]);
+  if (!done.rowCount) throw notFound('REQUEST_NOT_FOUND', 'Request not found');
+}
+
+export async function listHelperJobs(helperUserId, { limit, cursor, status }) {
+  const cur = cursor ? decodeCursor(cursor) : { ts: null, id: null };
+  const { rows } = await query(
+    `SELECT ${SELECT}, r.created_at::text AS cursor_ts ${FROM}
+      WHERE r.accepted_helper_id = (SELECT id FROM helper_profiles WHERE user_id = $1)
+        AND ($2::request_status IS NULL OR r.status = $2::request_status)
+        AND ($3::timestamptz IS NULL OR (r.created_at, r.id) < ($3::timestamptz, $4::uuid))
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT $5`,
+    [helperUserId, status ?? null, cur.ts, cur.id, limit + 1]);
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  return {
+    items: page.map(toDto),
+    nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
+  };
 }

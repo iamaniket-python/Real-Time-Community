@@ -21,3 +21,12 @@ export const availabilitySchema = z.object({
       path: ['lat'],
     }),
 });
+
+export const nearbySchema = z.object({
+  query: z.object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180),
+    categoryId: z.coerce.number().int().positive(),
+    radiusKm: z.coerce.number().positive().max(100).optional(),
+  }),
+});

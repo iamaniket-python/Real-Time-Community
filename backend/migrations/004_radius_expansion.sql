@@ -1,0 +1,1 @@
+ALTER TABLE help_requests ADD COLUMN radius_expanded_at timestamptz;

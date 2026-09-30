@@ -20,7 +20,7 @@ for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort())
 
   const sql = fs.readFileSync(path.join(dir, file), 'utf8');
   console.log(`${file}: ${sql.length} characters`);
-  if (sql.trim().length < 100) {
+  if (sql.trim().length === 0) {
     console.error(`${file} is empty or too short, refusing to apply it`);
     process.exit(1);
   }

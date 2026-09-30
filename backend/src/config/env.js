@@ -15,6 +15,9 @@ const schema = z.object({
   ADMIN_SEED_PASSWORD: z.string().min(12).optional(),
   REQUEST_SEARCH_RADIUS_KM: z.coerce.number().default(5),
   REQUEST_TIMEOUT_SECONDS: z.coerce.number().default(120),
+  MATCH_MAX_RADIUS_KM: z.coerce.number().default(25),
+  HELPER_LOCATION_MAX_AGE_MINUTES: z.coerce.number().default(30),
+  NEARBY_HELPERS_LIMIT: z.coerce.number().default(20),
 });
 
 const parsed = schema.safeParse(process.env);
