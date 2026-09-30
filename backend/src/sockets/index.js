@@ -6,6 +6,10 @@ import { logger } from '../utils/logger.js';
 import { setIO } from './io.js';
 import { rooms } from './rooms.js';
 import { registerRequestHandlers } from './request.handlers.js';
+import { registerHelperHandlers } from './helper.handlers.js';
+import { markConnected, markDisconnected } from './presence.js';
+import { unreadCount } from '../services/notification.service.js';
+import { getIncomingRequests } from '../services/matching.service.js';
 
 // The client reads err.data.errorCode from the connect_error event
 const authError = (errorCode, message) => {
@@ -48,6 +52,32 @@ async function authenticateSocket(socket, next) {
   }
 }
 
+/**
+ * Brings a (re)connected client up to date: request rooms, unread badge,
+ * and for helpers the list of open offers. The database is the source of truth.
+ */
+async function syncOnConnect(socket) {
+  const { user } = socket.data;
+  try {
+    const active = await query(
+      `SELECT r.id FROM help_requests r
+         LEFT JOIN helper_profiles hp ON hp.id = r.accepted_helper_id
+        WHERE r.status IN ('ACCEPTED','ARRIVING','IN_PROGRESS')
+          AND (r.user_id = $1 OR hp.user_id = $1)`, [user.id]);
+    for (const r of active.rows) await socket.join(rooms.request(r.id));
+
+    socket.emit('notification:count', { unreadCount: await unreadCount(user.id) });
+
+    if (user.helperId) {
+      const incoming = await getIncomingRequests(user.id);
+      for (const item of incoming.items) await socket.join(rooms.offers(item.id));
+      socket.emit('incoming:sync', incoming);
+    }
+  } catch (err) {
+    logger.error({ err, userId: user.id }, 'socket sync failed');
+  }
+}
+
 export function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: { origin: env.CLIENT_URL, credentials: true },
@@ -68,12 +98,17 @@ export function initSocket(httpServer) {
     if (user.role === 'ADMIN') socket.join(rooms.admins);
 
     registerRequestHandlers(socket);
+    registerHelperHandlers(socket);
+    markConnected(user);
 
     socket.emit('socket:ready', { userId: user.id, role: user.role });
+    void syncOnConnect(socket);
     logger.debug({ userId: user.id, socketId: socket.id }, 'socket connected');
 
-    socket.on('disconnect', (reason) =>
-      logger.debug({ userId: user.id, socketId: socket.id, reason }, 'socket disconnected'));
+    socket.on('disconnect', (reason) => {
+      markDisconnected(user);
+      logger.debug({ userId: user.id, socketId: socket.id, reason }, 'socket disconnected');
+    });
   });
 
   return io;

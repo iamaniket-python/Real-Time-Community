@@ -4,6 +4,7 @@ import auth from './auth.routes.js';
 import requests from './request.routes.js';
 import categories from './category.routes.js';
 import helpers from './helper.routes.js';
+import messages, { conversationRouter } from './message.routes.js';
 
 const router = Router();
 
@@ -22,5 +23,7 @@ router.use('/auth', auth);
 router.use('/categories', categories);
 router.use('/requests', requests);
 router.use('/helpers', helpers);
+router.use('/messages', messages);
+router.use('/conversations', conversationRouter);
 
 export default router;

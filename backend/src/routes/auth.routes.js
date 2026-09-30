@@ -4,12 +4,14 @@ import * as c from '../controllers/auth.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/auth.js';
 import { registerSchema, loginSchema } from '../validators/auth.validator.js';
+import { env } from '../config/env.js';
 
 // 20 attempts per 15 minutes per IP (moves to a Redis store in Phase 8)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
+  limit: env.AUTH_RATE_LIMIT_MAX,
   legacyHeaders: false,
   message: {
     success: false,

@@ -1,11 +1,10 @@
 import { query } from '../config/db.js';
 import { env } from '../config/env.js';
-import { boundingBox, roundCoord, roundKm } from '../utils/geo.js';
-import { boundingBox, roundCoord, roundKm, haversineSql } from '../utils/geo.js';
 import { notFound } from '../utils/AppError.js';
+import { boundingBox, roundCoord, roundKm, haversineSql } from '../utils/geo.js';
 
 // Haversine distance in km between ($1, $2) and a helper's position
-export const HAVERSINE_SQL = `
+const HELPER_DISTANCE_SQL = `
   6371 * 2 * asin(sqrt(least(1,
     power(sin(radians(hp.current_lat - $1::double precision) / 2), 2) +
     cos(radians($1::double precision)) * cos(radians(hp.current_lat)) *
@@ -25,7 +24,7 @@ export async function findNearbyHelpers({ lat, lng, categoryId, radiusKm, limit 
     `SELECT * FROM (
        SELECT hp.id, split_part(u.name, ' ', 1) AS first_name,
               hp.rating_avg, hp.rating_count, hp.current_lat, hp.current_lng,
-              ${HAVERSINE_SQL} AS distance_km
+              ${HELPER_DISTANCE_SQL} AS distance_km
          FROM helper_profiles hp
          JOIN users u ON u.id = hp.user_id AND u.status = 'ACTIVE'
         WHERE hp.is_available AND hp.verification = 'VERIFIED'
@@ -59,6 +58,7 @@ export async function findNearbyHelpers({ lat, lng, categoryId, radiusKm, limit 
     })),
   };
 }
+
 export async function getIncomingRequests(helperUserId) {
   const hp = (await query(
     `SELECT hp.id, hp.verification, hp.is_available, hp.current_lat, hp.current_lng,

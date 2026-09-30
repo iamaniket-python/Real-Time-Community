@@ -18,6 +18,8 @@ const schema = z.object({
   MATCH_MAX_RADIUS_KM: z.coerce.number().default(25),
   HELPER_LOCATION_MAX_AGE_MINUTES: z.coerce.number().default(30),
   NEARBY_HELPERS_LIMIT: z.coerce.number().default(20),
+  HELPER_OFFLINE_GRACE_SECONDS: z.coerce.number().default(60),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
 });
 
 const parsed = schema.safeParse(process.env);

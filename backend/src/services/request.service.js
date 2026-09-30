@@ -1,7 +1,16 @@
 import { query, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
-import { haversineSql } from '../utils/geo.js';
 import { AppError, conflict, notFound, forbidden } from '../utils/AppError.js';
+import { haversineSql } from '../utils/geo.js';
+import { encodeCursor, decodeCursor } from '../utils/cursor.js';
+import { createNotification, pushNotifications } from './notification.service.js';
+import { dispatchRequest } from './dispatch.service.js';
+import { emitRequestEvent, closeOffers } from '../sockets/io.js';
+import { logger } from '../utils/logger.js';
+
+// Real-time pushes run AFTER the commit and never fail the request.
+const afterCommit = (label, fn) =>
+  Promise.resolve().then(fn).catch((err) => logger.error({ err, label }, 'realtime step failed'));
 
 const SELECT = `
   r.id, r.user_id, r.category_id, c.name AS category_name, r.title, r.description,
@@ -31,20 +40,7 @@ const toDto = (r) => ({
   createdAt: r.created_at,
 });
 
-// ---- cursor helpers: timestamp kept as TEXT to preserve microseconds ----
-const encodeCursor = (ts, id) => Buffer.from(`${ts}|${id}`).toString('base64url');
-const TS_RE = /^\d{4}-\d{2}-\d{2}[ T][0-9:.+\-Z]+$/;
-const UUID_RE = /^[0-9a-f-]{36}$/i;
-function decodeCursor(cursor) {
-  try {
-    const [ts, id] = Buffer.from(cursor, 'base64url').toString().split('|');
-    if (!TS_RE.test(ts) || !UUID_RE.test(id)) throw new Error('bad');
-    return { ts, id };
-  } catch {
-    throw new AppError(400, 'INVALID_CURSOR', 'Invalid pagination cursor');
-  }
-}
-
+// ---------------------------------------------------------------- create
 export async function createRequest(userId, input) {
   const cat = await query('SELECT id FROM categories WHERE id = $1 AND is_active', [input.categoryId]);
   if (!cat.rowCount) throw new AppError(422, 'CATEGORY_NOT_FOUND', 'Category not found');
@@ -60,15 +56,13 @@ export async function createRequest(userId, input) {
          ON CONFLICT (user_id, idempotency_key) DO NOTHING
          RETURNING id`,
         [userId, input.categoryId, input.title, input.description, input.address ?? null,
-         input.lat, input.lng, env.REQUEST_SEARCH_RADIUS_KM, input.idempotencyKey ?? null],
-      );
+         input.lat, input.lng, env.REQUEST_SEARCH_RADIUS_KM, input.idempotencyKey ?? null]);
 
       if (!ins.rowCount) {
         // Same idempotency key sent again: return the original request
         const prev = await c.query(
           'SELECT id FROM help_requests WHERE user_id = $1 AND idempotency_key = $2',
-          [userId, input.idempotencyKey],
-        );
+          [userId, input.idempotencyKey]);
         return { id: prev.rows[0].id, created: false };
       }
 
@@ -92,10 +86,13 @@ export async function createRequest(userId, input) {
     throw err;
   }
 
+  if (result.created) void afterCommit('dispatch', () => dispatchRequest(result.id));
+
   const { rows } = await query(`SELECT ${SELECT} ${FROM} WHERE r.id = $1`, [result.id]);
   return { request: toDto(rows[0]), created: result.created };
 }
 
+// ---------------------------------------------------------------- read
 export async function getRequest(id, viewer) {
   const { rows } = await query(`SELECT ${SELECT} ${FROM} WHERE r.id = $1`, [id]);
   const r = rows[0];
@@ -117,9 +114,36 @@ export async function getRequest(id, viewer) {
   };
 }
 
+async function pagedRequests(whereSql, params, { limit, cursor, status }) {
+  const cur = cursor ? decodeCursor(cursor) : { ts: null, id: null };
+  const { rows } = await query(
+    `SELECT ${SELECT}, r.created_at::text AS cursor_ts ${FROM}
+      WHERE ${whereSql}
+        AND ($2::request_status IS NULL OR r.status = $2::request_status)
+        AND ($3::timestamptz IS NULL OR (r.created_at, r.id) < ($3::timestamptz, $4::uuid))
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT $5`,
+    [params[0], status ?? null, cur.ts, cur.id, limit + 1]);
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  return {
+    items: page.map(toDto),
+    nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
+  };
+}
+
+export const listMyRequests = (userId, opts) => pagedRequests('r.user_id = $1', [userId], opts);
+
+export const listHelperJobs = (helperUserId, opts) =>
+  pagedRequests('r.accepted_helper_id = (SELECT id FROM helper_profiles WHERE user_id = $1)', [helperUserId], opts);
+
+// ---------------------------------------------------------------- accept (race-safe)
 export async function acceptRequest(requestId, helperUserId) {
+  let info;
   try {
-    await withTransaction(async (c) => {
+    info = await withTransaction(async (c) => {
       const hp = (await c.query(
         `SELECT id, verification, is_available, current_lat, current_lng,
                 (location_updated_at > now() - make_interval(mins => $2::int)) AS location_fresh
@@ -149,14 +173,12 @@ export async function acceptRequest(requestId, helperUserId) {
         [requestId, hp.id, hp.current_lat, hp.current_lng]);
 
       if (!upd.rowCount) {
-        // Work out why, so the helper sees a useful error
         const why = (await c.query(
-          `SELECT r.status, r.accepted_helper_id, r.expires_at, r.search_radius_km,
+          `SELECT r.status, r.accepted_helper_id, r.expires_at,
                   EXISTS (SELECT 1 FROM helper_categories hc
-                           WHERE hc.helper_id = $2 AND hc.category_id = r.category_id) AS has_cat,
-                  ${distance} AS distance_km
+                           WHERE hc.helper_id = $2 AND hc.category_id = r.category_id) AS has_cat
              FROM help_requests r WHERE r.id = $1`,
-          [requestId, hp.id, hp.current_lat, hp.current_lng])).rows[0];
+          [requestId, hp.id])).rows[0];
 
         if (!why) throw notFound('REQUEST_NOT_FOUND', 'Request not found');
         if (!why.has_cat) throw forbidden('CATEGORY_MISMATCH', 'This request is outside your services');
@@ -166,17 +188,18 @@ export async function acceptRequest(requestId, helperUserId) {
         throw conflict('OUT_OF_RANGE', 'This request is outside your service area');
       }
 
-      const { user_id: requesterId } = upd.rows[0];
+      const requesterId = upd.rows[0].user_id;
       await c.query(
         `INSERT INTO request_status_history (request_id, from_status, to_status, changed_by)
          VALUES ($1, 'SEARCHING', 'ACCEPTED', $2)`, [requestId, helperUserId]);
       await c.query(
         `INSERT INTO conversations (request_id, user_id, helper_user_id) VALUES ($1, $2, $3)`,
         [requestId, requesterId, helperUserId]);
-      await c.query(
-        `INSERT INTO notifications (user_id, type, title, data)
-         VALUES ($1, 'REQUEST_ACCEPTED', 'Your request has been accepted', $2)`,
-        [requesterId, JSON.stringify({ requestId })]);
+      const note = await createNotification(c, {
+        userId: requesterId, type: 'REQUEST_ACCEPTED',
+        title: 'Your request has been accepted', data: { requestId },
+      });
+      return { requesterId, note, helperId: hp.id };
     });
   } catch (err) {
     if (err.code === '23505' && err.constraint === 'one_active_job_per_helper') {
@@ -184,40 +207,41 @@ export async function acceptRequest(requestId, helperUserId) {
     }
     throw err;
   }
+
+  void afterCommit('accept', async () => {
+    emitRequestEvent({ userIds: [info.requesterId], requestId }, 'request:accepted',
+      { requestId, status: 'ACCEPTED', acceptedAt: new Date().toISOString() });
+    closeOffers(requestId, 'TAKEN', info.helperId); // tell the losing helpers
+    await pushNotifications([info.note]);
+  });
+
   return getRequest(requestId, { id: helperUserId, role: 'HELPER' });
 }
 
-export async function listMyRequests(userId, { limit, cursor, status }) {
-  const cur = cursor ? decodeCursor(cursor) : { ts: null, id: null };
-  const { rows } = await query(
-    `SELECT ${SELECT}, r.created_at::text AS cursor_ts ${FROM}
-      WHERE r.user_id = $1
-        AND ($2::request_status IS NULL OR r.status = $2::request_status)
-        AND ($3::timestamptz IS NULL OR (r.created_at, r.id) < ($3::timestamptz, $4::uuid))
-      ORDER BY r.created_at DESC, r.id DESC
-      LIMIT $5`,
-    [userId, status ?? null, cur.ts, cur.id, limit + 1],
-  );
+// ---------------------------------------------------------------- reject (private "not interested")
+export async function rejectRequest(requestId, helperUserId) {
+  const hp = (await query('SELECT id FROM helper_profiles WHERE user_id = $1', [helperUserId])).rows[0];
+  if (!hp) throw notFound('HELPER_PROFILE_NOT_FOUND', 'Helper profile not found');
 
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
-  const last = page[page.length - 1];
-  return {
-    items: page.map(toDto),
-    nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
-  };
+  await query(
+    `INSERT INTO request_rejections (request_id, helper_id)
+     SELECT r.id, $2 FROM help_requests r
+      WHERE r.id = $1 AND r.status = 'SEARCHING'
+        AND EXISTS (SELECT 1 FROM helper_categories hc
+                     WHERE hc.helper_id = $2 AND hc.category_id = r.category_id)
+     ON CONFLICT DO NOTHING`,
+    [requestId, hp.id]);
+
+  const done = await query(
+    'SELECT 1 FROM request_rejections WHERE request_id = $1 AND helper_id = $2', [requestId, hp.id]);
+  if (!done.rowCount) throw notFound('REQUEST_NOT_FOUND', 'Request not found');
 }
 
+// ---------------------------------------------------------------- cancel
 const CANCELLABLE = ['PENDING', 'SEARCHING', 'ACCEPTED', 'ARRIVING'];
-const NEXT_STATUS = { ACCEPTED: 'ARRIVING', ARRIVING: 'IN_PROGRESS', IN_PROGRESS: 'COMPLETED' };
-const USER_MESSAGE = {
-  ARRIVING: 'Your helper is arriving',
-  IN_PROGRESS: 'Work on your request has started',
-  COMPLETED: 'Your request is complete',
-};
 
 export async function cancelRequest(requestId, userId, reason) {
-  await withTransaction(async (c) => {
+  const info = await withTransaction(async (c) => {
     const r = (await c.query(
       `SELECT r.id, r.status, hp.user_id AS helper_user_id
          FROM help_requests r
@@ -236,18 +260,36 @@ export async function cancelRequest(requestId, userId, reason) {
        VALUES ($1, $2, 'CANCELLED', $3, $4)`,
       [requestId, r.status, userId, reason ?? null]);
 
-    if (r.helper_user_id) {
-      await c.query(
-        `INSERT INTO notifications (user_id, type, title, data)
-         VALUES ($1, 'REQUEST_CANCELLED', 'The request was cancelled by the user', $2)`,
-        [r.helper_user_id, JSON.stringify({ requestId })]);
-    }
+    const note = r.helper_user_id
+      ? await createNotification(c, {
+          userId: r.helper_user_id, type: 'REQUEST_CANCELLED',
+          title: 'The request was cancelled by the user', data: { requestId },
+        })
+      : null;
+    return { prevStatus: r.status, helperUserId: r.helper_user_id, note };
   });
+
+  void afterCommit('cancel', async () => {
+    emitRequestEvent(
+      { userIds: [userId, ...(info.helperUserId ? [info.helperUserId] : [])], requestId },
+      'request:cancelled', { requestId, by: 'USER', at: new Date().toISOString() });
+    if (['PENDING', 'SEARCHING'].includes(info.prevStatus)) closeOffers(requestId, 'CANCELLED');
+    if (info.note) await pushNotifications([info.note]);
+  });
+
   return getRequest(requestId, { id: userId, role: 'USER' });
 }
 
+// ---------------------------------------------------------------- job status (helper)
+const NEXT_STATUS = { ACCEPTED: 'ARRIVING', ARRIVING: 'IN_PROGRESS', IN_PROGRESS: 'COMPLETED' };
+const USER_MESSAGE = {
+  ARRIVING: 'Your helper is arriving',
+  IN_PROGRESS: 'Work on your request has started',
+  COMPLETED: 'Your request is complete',
+};
+
 export async function updateStatus(requestId, helperUserId, target, note) {
-  await withTransaction(async (c) => {
+  const info = await withTransaction(async (c) => {
     const hp = (await c.query('SELECT id FROM helper_profiles WHERE user_id = $1', [helperUserId])).rows[0];
     const r = (await c.query(
       `SELECT id, user_id, status, accepted_helper_id FROM help_requests WHERE id = $1 FOR UPDATE`,
@@ -270,50 +312,18 @@ export async function updateStatus(requestId, helperUserId, target, note) {
       `INSERT INTO request_status_history (request_id, from_status, to_status, changed_by, note)
        VALUES ($1, $2, $3, $4, $5)`,
       [requestId, r.status, target, helperUserId, note ?? null]);
-    await c.query(
-      `INSERT INTO notifications (user_id, type, title, data)
-       VALUES ($1, 'REQUEST_STATUS_CHANGED', $2, $3)`,
-      [r.user_id, USER_MESSAGE[target], JSON.stringify({ requestId, status: target })]);
+    const notification = await createNotification(c, {
+      userId: r.user_id, type: 'REQUEST_STATUS_CHANGED',
+      title: USER_MESSAGE[target], data: { requestId, status: target },
+    });
+    return { ownerId: r.user_id, notification };
   });
+
+  void afterCommit('status', async () => {
+    emitRequestEvent({ userIds: [info.ownerId, helperUserId], requestId }, 'request:status_changed',
+      { requestId, status: target, note: note ?? null, at: new Date().toISOString() });
+    await pushNotifications([info.notification]);
+  });
+
   return getRequest(requestId, { id: helperUserId, role: 'HELPER' });
-}
-
-export async function rejectRequest(requestId, helperUserId) {
-  const hp = (await query('SELECT id FROM helper_profiles WHERE user_id = $1', [helperUserId])).rows[0];
-  if (!hp) throw notFound('HELPER_PROFILE_NOT_FOUND', 'Helper profile not found');
-
-  // Only requests this helper could actually see can be rejected
-  await query(
-    `INSERT INTO request_rejections (request_id, helper_id)
-     SELECT r.id, $2 FROM help_requests r
-      WHERE r.id = $1 AND r.status = 'SEARCHING'
-        AND EXISTS (SELECT 1 FROM helper_categories hc
-                     WHERE hc.helper_id = $2 AND hc.category_id = r.category_id)
-     ON CONFLICT DO NOTHING`,
-    [requestId, hp.id]);
-
-  // Rejecting twice is fine (idempotent); rejecting something unknown is a 404
-  const done = await query(
-    'SELECT 1 FROM request_rejections WHERE request_id = $1 AND helper_id = $2', [requestId, hp.id]);
-  if (!done.rowCount) throw notFound('REQUEST_NOT_FOUND', 'Request not found');
-}
-
-export async function listHelperJobs(helperUserId, { limit, cursor, status }) {
-  const cur = cursor ? decodeCursor(cursor) : { ts: null, id: null };
-  const { rows } = await query(
-    `SELECT ${SELECT}, r.created_at::text AS cursor_ts ${FROM}
-      WHERE r.accepted_helper_id = (SELECT id FROM helper_profiles WHERE user_id = $1)
-        AND ($2::request_status IS NULL OR r.status = $2::request_status)
-        AND ($3::timestamptz IS NULL OR (r.created_at, r.id) < ($3::timestamptz, $4::uuid))
-      ORDER BY r.created_at DESC, r.id DESC
-      LIMIT $5`,
-    [helperUserId, status ?? null, cur.ts, cur.id, limit + 1]);
-
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
-  const last = page[page.length - 1];
-  return {
-    items: page.map(toDto),
-    nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
-  };
 }
