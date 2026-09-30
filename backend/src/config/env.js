@@ -13,6 +13,8 @@ const schema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().default(7),
   ADMIN_SEED_EMAIL: z.string().email().optional(),
   ADMIN_SEED_PASSWORD: z.string().min(12).optional(),
+  REQUEST_SEARCH_RADIUS_KM: z.coerce.number().default(5),
+  REQUEST_TIMEOUT_SECONDS: z.coerce.number().default(120),
 });
 
 const parsed = schema.safeParse(process.env);

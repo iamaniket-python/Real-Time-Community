@@ -16,6 +16,7 @@ export const validate = (schema) => (req, _res, next) => {
     return next(err);
   }
 
-  if (result.data.body) req.body = result.data.body; // use the cleaned, trimmed values
+    if (result.data.body) req.body = result.data.body;
+    if (result.data.query) req.query = result.data.query; 
   next();
 };
