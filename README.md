@@ -654,7 +654,7 @@ implementation and testing.
 
 ## 👨‍💻 Author
 
-**Your Name**
+Aniket Shrivastava
 
 Built with ❤️ using the PERN stack.
 
