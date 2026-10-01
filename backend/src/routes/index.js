@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../config/db.js';
 import auth from './auth.routes.js';
+import admin from './admin.routes.js';
 import requests from './request.routes.js';
 import requestImages from './request-image.routes.js';
 import { requestRatingRouter, helperRatingRouter } from './rating.routes.js';
@@ -22,6 +23,7 @@ router.get('/health', async (_req, res) => {
 });
 
 router.use('/auth', auth);
+router.use('/admin', admin);
 router.use('/categories', categories);
 router.use('/requests', requestImages);       // /:id/image, /:id/image-url
 router.use('/requests', requestRatingRouter); // /:id/rating
