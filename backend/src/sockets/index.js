@@ -7,6 +7,7 @@ import { setIO } from './io.js';
 import { rooms } from './rooms.js';
 import { registerRequestHandlers } from './request.handlers.js';
 import { registerHelperHandlers } from './helper.handlers.js';
+import { registerChatHandlers } from './chat.handlers.js';
 import { markConnected, markDisconnected } from './presence.js';
 import { unreadCount } from '../services/notification.service.js';
 import { getIncomingRequests } from '../services/matching.service.js';
@@ -53,7 +54,7 @@ async function authenticateSocket(socket, next) {
 }
 
 /**
- * Brings a (re)connected client up to date: request rooms, unread badge,
+ * Brings a (re)connected client up to date: request rooms, chat rooms, unread badge,
  * and for helpers the list of open offers. The database is the source of truth.
  */
 async function syncOnConnect(socket) {
@@ -65,6 +66,14 @@ async function syncOnConnect(socket) {
         WHERE r.status IN ('ACCEPTED','ARRIVING','IN_PROGRESS')
           AND (r.user_id = $1 OR hp.user_id = $1)`, [user.id]);
     for (const r of active.rows) await socket.join(rooms.request(r.id));
+
+    // Conversations whose chat is still open (closed chats are read via REST history)
+    const chats = await query(
+      `SELECT cv.id FROM conversations cv
+         JOIN help_requests r ON r.id = cv.request_id
+        WHERE r.status IN ('ACCEPTED','ARRIVING','IN_PROGRESS')
+          AND (cv.user_id = $1 OR cv.helper_user_id = $1)`, [user.id]);
+    for (const c of chats.rows) await socket.join(rooms.conversation(c.id));
 
     socket.emit('notification:count', { unreadCount: await unreadCount(user.id) });
 
@@ -99,6 +108,7 @@ export function initSocket(httpServer) {
 
     registerRequestHandlers(socket);
     registerHelperHandlers(socket);
+    registerChatHandlers(socket);
     markConnected(user);
 
     socket.emit('socket:ready', { userId: user.id, role: user.role });

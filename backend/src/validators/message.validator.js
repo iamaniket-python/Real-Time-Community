@@ -14,6 +14,17 @@ export const sendMessageSchema = z.object({
     .strict(),
 });
 
+// multipart: the file is handled by the upload middleware, these are the text fields
+export const sendAttachmentSchema = z.object({
+  params: z.object({ conversationId: z.string().uuid('Invalid conversation id') }),
+  body: z
+    .object({
+      caption: z.string().trim().max(2000, 'Caption is too long').refine(noNul, 'Invalid characters').optional(),
+      clientId: z.string().trim().min(8).max(64).optional(),
+    })
+    .strict(),
+});
+
 export const conversationIdSchema = z.object({
   params: z.object({ conversationId: z.string().uuid('Invalid conversation id') }),
 });

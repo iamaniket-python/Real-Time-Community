@@ -3,16 +3,23 @@ import { conflict, notFound } from '../utils/AppError.js';
 import { encodeCursor, decodeCursor } from '../utils/cursor.js';
 import { emitToUsers } from '../sockets/io.js';
 import { pushNotifications, syncCount } from './notification.service.js';
+import { signedUrl, storeImage, deleteStored } from './upload.service.js';
 import { logger } from '../utils/logger.js';
 
 const ACTIVE = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS'];
+
+/** True while messages can still be sent for a request with this status. */
+export const isChatOpen = (status) => ACTIVE.includes(status);
 
 const toMessage = (m) => ({
   id: m.id,
   conversationId: m.conversation_id,
   senderId: m.sender_id,
   body: m.body,
-  attachment: m.attachment_url ? { url: m.attachment_url, type: m.attachment_type } : null,
+  // The database keeps a plain path; the client gets a short-lived signed URL
+  attachment: m.attachment_url
+    ? { url: signedUrl(m.attachment_url), type: m.attachment_type }
+    : null,
   deliveredAt: m.delivered_at,
   readAt: m.read_at ?? null,
   createdAt: m.created_at,
@@ -97,18 +104,20 @@ export async function getMessages(userId, conversationId, { limit, cursor }) {
   };
 }
 
-export async function sendMessage(userId, { conversationId, body, clientId }) {
+/** Shared by text and attachment messages. attachment = { path, type } or null. */
+async function insertMessage(userId, { conversationId, body, clientId, attachment }) {
   const result = await withTransaction(async (c) => {
     const cv = await getConversation(c, conversationId, userId);
     if (!ACTIVE.includes(cv.status)) throw conflict('CHAT_CLOSED', 'This chat is closed');
     const recipientId = cv.user_id === userId ? cv.helper_user_id : cv.user_id;
 
     const ins = await c.query(
-      `INSERT INTO messages (conversation_id, sender_id, body, client_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO messages (conversation_id, sender_id, body, client_id, attachment_url, attachment_type)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (conversation_id, sender_id, client_id) DO NOTHING
        RETURNING *`,
-      [conversationId, userId, body, clientId ?? null]);
+      [conversationId, userId, body, clientId ?? null,
+        attachment?.path ?? null, attachment?.type ?? null]);
 
     if (!ins.rowCount) { // same clientId sent again: return the original
       const prev = await c.query(
@@ -143,6 +152,66 @@ export async function sendMessage(userId, { conversationId, body, clientId }) {
     }
   }
   return { message, created: result.created };
+}
+
+export const sendMessage = (userId, { conversationId, body, clientId }) =>
+  insertMessage(userId, { conversationId, body, clientId, attachment: null });
+
+/**
+ * Image message. file = { buffer, detected: { mime, ext } } from the uploadImage middleware.
+ * The caption may be empty. Nothing is written to disk unless the sender is a participant
+ * and the chat is open.
+ */
+export async function sendAttachment(userId, { conversationId, caption, clientId, file }) {
+  const cv = await getConversation(pool, conversationId, userId);
+  if (!ACTIVE.includes(cv.status)) throw conflict('CHAT_CLOSED', 'This chat is closed');
+
+  if (clientId) { // replay: return the original without storing the file again
+    const prev = await query(
+      'SELECT * FROM messages WHERE conversation_id = $1 AND sender_id = $2 AND client_id = $3',
+      [conversationId, userId, clientId]);
+    if (prev.rows[0]) return { message: toMessage(prev.rows[0]), created: false };
+  }
+
+  const stored = await storeImage(file.buffer, file.detected.ext);
+  try {
+    const out = await insertMessage(userId, {
+      conversationId,
+      body: caption ?? '',
+      clientId,
+      attachment: { path: stored.path, type: stored.mime },
+    });
+    if (!out.created) await deleteStored(stored.path); // lost a race with the same clientId
+    return out;
+  } catch (err) {
+    await deleteStored(stored.path); // no orphan files when the insert fails
+    throw err;
+  }
+}
+
+/**
+ * The recipient confirms their client received these messages.
+ * Only messages sent by the OTHER participant that are not yet delivered are updated.
+ */
+export async function markDelivered(userId, conversationId, messageIds) {
+  const cv = await getConversation(pool, conversationId, userId);
+  const otherId = cv.user_id === userId ? cv.helper_user_id : cv.user_id;
+
+  const { rows } = await query(
+    `UPDATE messages SET delivered_at = now()
+      WHERE conversation_id = $1 AND sender_id <> $2
+        AND id = ANY($3::uuid[]) AND delivered_at IS NULL
+      RETURNING id, delivered_at`,
+    [conversationId, userId, messageIds]);
+
+  if (rows.length > 0) {
+    emitToUsers([otherId], 'message:delivered', {
+      conversationId,
+      messageIds: rows.map((r) => r.id),
+      deliveredAt: rows[0].delivered_at,
+    });
+  }
+  return { delivered: rows.length };
 }
 
 export async function markConversationRead(userId, conversationId) {

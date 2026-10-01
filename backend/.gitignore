@@ -11,3 +11,5 @@ uploads/
 .DS_Store
 "@ | Set-Content -Path .gitignore -Encoding utf8
 .env
+
+uploads/
