@@ -3,6 +3,8 @@ import { query } from '../config/db.js';
 import auth from './auth.routes.js';
 import requests from './request.routes.js';
 import requestImages from './request-image.routes.js';
+import { requestRatingRouter, helperRatingRouter } from './rating.routes.js';
+import reports from './report.routes.js';
 import categories from './category.routes.js';
 import helpers from './helper.routes.js';
 import messages, { conversationRouter } from './message.routes.js';
@@ -21,8 +23,11 @@ router.get('/health', async (_req, res) => {
 
 router.use('/auth', auth);
 router.use('/categories', categories);
-router.use('/requests', requestImages); // /:id/image, /:id/image-url (must come before `requests`)
+router.use('/requests', requestImages);       // /:id/image, /:id/image-url
+router.use('/requests', requestRatingRouter); // /:id/rating
+router.use('/requests', reports);             // /:id/report
 router.use('/requests', requests);
+router.use('/helpers', helperRatingRouter);   // /:id/ratings (before `helpers`)
 router.use('/helpers', helpers);
 router.use('/messages', messages);
 router.use('/conversations', conversationRouter);

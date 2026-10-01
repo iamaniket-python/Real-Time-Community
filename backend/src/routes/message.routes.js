@@ -16,7 +16,6 @@ const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 const sendLimiter = rateLimit({
   windowMs: 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
   keyGenerator: (req) => req.user.id,
-  validate: { keyGeneratorIpFallback: false },
   message: { success: false, message: 'You are sending messages too fast', errorCode: 'RATE_LIMITED' },
 });
 
@@ -24,7 +23,6 @@ const sendLimiter = rateLimit({
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
   keyGenerator: (req) => req.user.id,
-  validate: { keyGeneratorIpFallback: false },
   message: { success: false, message: 'You are uploading too fast', errorCode: 'RATE_LIMITED' },
 });
 

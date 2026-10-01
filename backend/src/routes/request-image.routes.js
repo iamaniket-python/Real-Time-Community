@@ -12,7 +12,6 @@ const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
   keyGenerator: (req) => req.user.id,
-  validate: { keyGeneratorIpFallback: false },
   message: { success: false, message: 'You are uploading too fast', errorCode: 'RATE_LIMITED' },
 });
 
