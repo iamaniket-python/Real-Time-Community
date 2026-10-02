@@ -1,7 +1,8 @@
 import { query, withTransaction } from '../config/db.js';
 import { conflict, notFound, forbidden } from '../utils/AppError.js';
-import { getIO } from '../sockets/io.js';
+import { getIO, closeOffers, emitRequestEvent } from '../sockets/io.js';
 import { rooms } from '../sockets/rooms.js';
+import { pushNotifications } from './notification.service.js';
 import { logger } from '../utils/logger.js';
 
 const HELPER_TRANSITIONS = {
@@ -66,6 +67,49 @@ export async function changeHelperStatus(adminId, helperId, action, reason) {
   });
 }
 
+/** Cancels every active request the user is part of. Runs inside the block transaction. */
+async function cancelActiveRequests(c, userId) {
+  const { rows } = await c.query(
+    `SELECT r.id, r.status::text AS status, r.user_id, hp.user_id AS helper_user_id
+       FROM help_requests r
+       LEFT JOIN helper_profiles hp ON hp.id = r.accepted_helper_id
+      WHERE r.status IN ('PENDING','SEARCHING','ACCEPTED','ARRIVING','IN_PROGRESS')
+        AND (r.user_id = $1 OR hp.user_id = $1)
+      FOR UPDATE OF r`,
+    [userId]);
+  if (rows.length) {
+    await c.query(
+      `UPDATE help_requests SET status = 'CANCELLED' WHERE id = ANY($1::uuid[])`,
+      [rows.map((r) => r.id)]);
+  }
+  return rows;
+}
+
+/** After commit, best effort: tell everyone affected. Never throws. */
+async function announceCancellations(blockedUserId, cancelled) {
+  for (const r of cancelled) {
+    try {
+      const otherId = r.user_id === blockedUserId ? r.helper_user_id : r.user_id;
+      const userIds = [r.user_id, r.helper_user_id].filter((id) => id && id !== blockedUserId);
+
+      emitRequestEvent({ userIds, requestId: r.id }, 'request:cancelled',
+        { requestId: r.id, reason: 'USER_BLOCKED' });
+      if (r.status === 'SEARCHING') closeOffers(r.id, 'CANCELLED');
+
+      if (otherId) {
+        const { rows } = await query(
+          `INSERT INTO notifications (user_id, type, title, data)
+           VALUES ($1, 'REQUEST_CANCELLED', 'Your request was cancelled', $2::jsonb)
+           RETURNING *`,
+          [otherId, JSON.stringify({ requestId: r.id, reason: 'USER_BLOCKED' })]);
+        await pushNotifications(rows);
+      }
+    } catch (err) {
+      logger.error({ err, requestId: r.id }, 'could not announce cancellation');
+    }
+  }
+}
+
 /** action = 'block' | 'unblock'. */
 export async function changeUserStatus(adminId, userId, action, reason) {
   if (userId === adminId) throw forbidden('CANNOT_MODIFY_SELF', 'You cannot change your own account status');
@@ -91,23 +135,30 @@ export async function changeUserStatus(adminId, userId, action, reason) {
 
     await c.query('UPDATE users SET status = $2 WHERE id = $1', [userId, next]);
 
+    let cancelled = [];
     if (action === 'block') {
       await c.query(
         'UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
       await c.query('UPDATE helper_profiles SET is_available = false WHERE user_id = $1', [userId]);
+      cancelled = await cancelActiveRequests(c, userId);
     }
 
-    await audit(c, adminId, `USER_${action.toUpperCase()}`, 'user', userId,
-      { from: u.status, to: next, reason: reason ?? null });
-    return { userId, status: next };
+    await audit(c, adminId, `USER_${action.toUpperCase()}`, 'user', userId, {
+      from: u.status,
+      to: next,
+      reason: reason ?? null,
+      cancelledRequestIds: cancelled.map((r) => r.id),
+    });
+    return { userId, status: next, cancelled };
   });
 
   if (action === 'block') {
-    try { // after commit, best effort: drop every live socket of that user
+    await announceCancellations(userId, result.cancelled);
+    try { // drop every live socket of that user
       getIO()?.in(rooms.user(userId)).disconnectSockets(true);
     } catch (err) {
       logger.error({ err }, 'could not disconnect blocked user');
     }
   }
-  return result;
+  return { userId: result.userId, status: result.status, cancelledRequests: result.cancelled.length };
 }

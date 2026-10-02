@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../config/db.js';
+import { pingRedis } from '../config/redis.js';
 import auth from './auth.routes.js';
 import admin from './admin.routes.js';
 import requests from './request.routes.js';
@@ -14,25 +15,26 @@ import uploads from './upload.routes.js';
 const router = Router();
 
 router.get('/health', async (_req, res) => {
+  const redisOk = await pingRedis();
   try {
     await query('SELECT 1');
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', redis: redisOk ? 'up' : 'down' });
   } catch {
-    res.status(503).json({ status: 'degraded' });
+    res.status(503).json({ status: 'degraded', redis: redisOk ? 'up' : 'down' });
   }
 });
 
 router.use('/auth', auth);
 router.use('/admin', admin);
 router.use('/categories', categories);
-router.use('/requests', requestImages);       // /:id/image, /:id/image-url
-router.use('/requests', requestRatingRouter); // /:id/rating
-router.use('/requests', reports);             // /:id/report
+router.use('/requests', requestImages);      
+router.use('/requests', requestRatingRouter);
+router.use('/requests', reports);             
 router.use('/requests', requests);
-router.use('/helpers', helperRatingRouter);   // /:id/ratings (before `helpers`)
+router.use('/helpers', helperRatingRouter); 
 router.use('/helpers', helpers);
 router.use('/messages', messages);
 router.use('/conversations', conversationRouter);
-router.use('/uploads', uploads); // signed URLs, no Bearer token
+router.use('/uploads', uploads);
 
 export default router;
