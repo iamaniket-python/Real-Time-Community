@@ -18,10 +18,10 @@ export async function rateRequest(userId, requestId, { score, comment }) {
     }
 
     const ins = await c.query(
-      `INSERT INTO ratings (request_id, rater_id, helper_id, score, comment)
+      `INSERT INTO ratings (request_id, rater_id, helper_id, score, review)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (request_id) DO NOTHING
-       RETURNING id, score, comment, created_at`,
+       RETURNING id, score, review, created_at`,
       [requestId, userId, r.accepted_helper_id, score, comment ?? null]);
     if (!ins.rowCount) throw conflict('ALREADY_RATED', 'You have already rated this request');
 
@@ -53,7 +53,7 @@ export async function rateRequest(userId, requestId, { score, comment }) {
 
   const { rating, helper } = result;
   return {
-    rating: { id: rating.id, requestId, score: rating.score, comment: rating.comment, createdAt: rating.created_at },
+    rating: { id: rating.id, requestId, score: rating.score, comment: rating.review, createdAt: rating.created_at },
     helper: { ratingAvg: Number(helper.rating_avg), ratingCount: helper.rating_count },
   };
 }
@@ -66,7 +66,7 @@ export async function listHelperRatings(helperId, { limit, cursor }) {
 
   const cur = cursor ? decodeCursor(cursor) : { ts: null, id: null };
   const { rows } = await pool.query(
-    `SELECT r.id, r.score, r.comment, r.created_at,
+    `SELECT r.id, r.score, r.review, r.created_at,
             r.created_at::text AS cursor_ts, split_part(u.name, ' ', 1) AS rater_name
        FROM ratings r JOIN users u ON u.id = r.rater_id
       WHERE r.helper_id = $1
@@ -81,7 +81,7 @@ export async function listHelperRatings(helperId, { limit, cursor }) {
   return {
     summary: { ratingAvg: Number(hp.rows[0].rating_avg ?? 0), ratingCount: hp.rows[0].rating_count },
     items: page.map((r) => ({
-      id: r.id, score: r.score, comment: r.comment, raterFirstName: r.rater_name, createdAt: r.created_at,
+      id: r.id, score: r.score, comment: r.review, raterFirstName: r.rater_name, createdAt: r.created_at,
     })),
     nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
   };

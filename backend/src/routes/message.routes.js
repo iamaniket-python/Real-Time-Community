@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
 import * as c from '../controllers/message.controller.js';
 import * as attachment from '../controllers/attachment.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { uploadImage } from '../middleware/upload.js';
+import { makeLimiter } from '../middleware/rateLimit.js';
 import {
   sendMessageSchema, sendAttachmentSchema, conversationIdSchema,
   listMessagesSchema, listConversationsSchema,
@@ -12,16 +12,20 @@ import {
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
-// 30 messages per minute per user (in-memory now; Redis store in Phase 8)
-const sendLimiter = rateLimit({
-  windowMs: 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
+// 30 messages per minute per user
+const sendLimiter = makeLimiter({
+  prefix: 'msg-send',
+  windowMs: 60 * 1000,
+  limit: 30,
   keyGenerator: (req) => req.user.id,
   message: { success: false, message: 'You are sending messages too fast', errorCode: 'RATE_LIMITED' },
 });
 
 // Stricter for images: 10 per minute per user
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+const uploadLimiter = makeLimiter({
+  prefix: 'msg-upload',
+  windowMs: 60 * 1000,
+  limit: 10,
   keyGenerator: (req) => req.user.id,
   message: { success: false, message: 'You are uploading too fast', errorCode: 'RATE_LIMITED' },
 });

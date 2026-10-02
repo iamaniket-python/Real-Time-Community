@@ -1,16 +1,18 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
 import * as c from '../controllers/request-image.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { uploadImage } from '../middleware/upload.js';
+import { makeLimiter } from '../middleware/rateLimit.js';
 import { requestIdSchema } from '../validators/request-image.validator.js';
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
-// 10 uploads per minute per user (in-memory now; Redis store in Phase 8)
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+// 10 uploads per minute per user
+const uploadLimiter = makeLimiter({
+  prefix: 'req-image',
+  windowMs: 60 * 1000,
+  limit: 10,
   keyGenerator: (req) => req.user.id,
   message: { success: false, message: 'You are uploading too fast', errorCode: 'RATE_LIMITED' },
 });

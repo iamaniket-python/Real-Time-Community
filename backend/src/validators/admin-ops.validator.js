@@ -8,7 +8,7 @@ export const createCategorySchema = z.object({
 });
 
 export const updateCategorySchema = z.object({
-  params: z.object({ id: z.string().uuid('Invalid category id') }),
+  params: z.object({ id: z.coerce.number().int().positive('Invalid category id') }),
   body: z.object({
     name: categoryName.optional(),
     isActive: z.boolean().optional(),

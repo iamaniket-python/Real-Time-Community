@@ -11,19 +11,19 @@ const HELPER_TRANSITIONS = {
   suspend: { from: ['VERIFIED'], to: 'SUSPENDED' },
 };
 
-const audit = (c, adminId, action, targetType, targetId, details) =>
+const audit = (c, adminId, action, targetType, targetId, metadata) =>
   c.query(
-    `INSERT INTO admin_actions (admin_id, action, target_type, target_id, details)
-     VALUES ($1, $2, $3, $4, $5::jsonb)`,
-    [adminId, action, targetType, targetId, JSON.stringify(details ?? {})]);
+    `INSERT INTO admin_actions (admin_id, action, target_type, target_id, metadata)
+     VALUES ($1, $2, $3, $4::text, $5::jsonb)`,
+    [adminId, action, targetType, String(targetId), JSON.stringify(metadata ?? {})]);
 
 /** Helpers filtered by verification status (default: waiting for review). */
 export async function listHelpers({ status, limit }) {
   const { rows } = await query(
-    `SELECT hp.id, hp.verification_status, hp.is_available,
+    `SELECT hp.id, hp.verification::text AS verification, hp.is_available,
             u.id AS user_id, u.name, u.email, u.status AS account_status, u.created_at
        FROM helper_profiles hp JOIN users u ON u.id = hp.user_id
-      WHERE hp.verification_status = $1
+      WHERE hp.verification = $1::verification_status
       ORDER BY u.created_at ASC, hp.id ASC
       LIMIT $2`,
     [status, limit]);
@@ -33,7 +33,7 @@ export async function listHelpers({ status, limit }) {
       userId: h.user_id,
       name: h.name,
       email: h.email,
-      verificationStatus: h.verification_status,
+      verificationStatus: h.verification,
       isAvailable: h.is_available,
       accountStatus: h.account_status,
       createdAt: h.created_at,
@@ -46,23 +46,25 @@ export async function changeHelperStatus(adminId, helperId, action, reason) {
   const rule = HELPER_TRANSITIONS[action];
   return withTransaction(async (c) => {
     const { rows } = await c.query(
-      'SELECT id, verification_status FROM helper_profiles WHERE id = $1 FOR UPDATE', [helperId]);
+      'SELECT id, verification::text AS verification FROM helper_profiles WHERE id = $1 FOR UPDATE',
+      [helperId]);
     const h = rows[0];
     if (!h) throw notFound('HELPER_NOT_FOUND', 'Helper not found');
-    if (!rule.from.includes(h.verification_status)) {
+    if (!rule.from.includes(h.verification)) {
       throw conflict('INVALID_STATE_TRANSITION',
-        `Cannot ${action} a helper whose status is ${h.verification_status}`);
+        `Cannot ${action} a helper whose status is ${h.verification}`);
     }
 
     const stillVerified = rule.to === 'VERIFIED';
     await c.query(
       `UPDATE helper_profiles
-          SET verification_status = $2, is_available = is_available AND $3::boolean
+          SET verification = $2::verification_status,
+              is_available = is_available AND $3::boolean
         WHERE id = $1`,
       [helperId, rule.to, stillVerified]);
 
     await audit(c, adminId, `HELPER_${action.toUpperCase()}`, 'helper_profile', helperId,
-      { from: h.verification_status, to: rule.to, reason: reason ?? null });
+      { from: h.verification, to: rule.to, reason: reason ?? null });
     return { helperId, verificationStatus: rule.to };
   });
 }
@@ -78,9 +80,15 @@ async function cancelActiveRequests(c, userId) {
       FOR UPDATE OF r`,
     [userId]);
   if (rows.length) {
+    const ids = rows.map((r) => r.id);
+    // History first, while the old status is still in the row
     await c.query(
-      `UPDATE help_requests SET status = 'CANCELLED' WHERE id = ANY($1::uuid[])`,
-      [rows.map((r) => r.id)]);
+      `INSERT INTO request_status_history (request_id, from_status, to_status, changed_by, note)
+       SELECT id, status, 'CANCELLED', NULL, 'Cancelled: user blocked by admin'
+         FROM help_requests WHERE id = ANY($1::uuid[])`,
+      [ids]);
+    await c.query(
+      `UPDATE help_requests SET status = 'CANCELLED' WHERE id = ANY($1::uuid[])`, [ids]);
   }
   return rows;
 }

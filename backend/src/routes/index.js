@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { query } from '../config/db.js';
 import { pingRedis } from '../config/redis.js';
 import auth from './auth.routes.js';
@@ -11,6 +11,12 @@ import categories from './category.routes.js';
 import helpers from './helper.routes.js';
 import messages, { conversationRouter } from './message.routes.js';
 import uploads from './upload.routes.js';
+import * as notificationModule from './notification.routes.js';
+
+const notifications = notificationModule.default ?? notificationModule.notificationRouter;
+if (!notifications) {
+  throw new Error('notification.routes.js has no default export or notificationRouter export');
+}
 
 const router = Router();
 
@@ -27,14 +33,15 @@ router.get('/health', async (_req, res) => {
 router.use('/auth', auth);
 router.use('/admin', admin);
 router.use('/categories', categories);
-router.use('/requests', requestImages);      
-router.use('/requests', requestRatingRouter);
-router.use('/requests', reports);             
+router.use('/notifications', notifications);
+router.use('/requests', requestImages);       // /:id/image, /:id/image-url
+router.use('/requests', requestRatingRouter); // /:id/rating
+router.use('/requests', reports);             // /:id/report
 router.use('/requests', requests);
-router.use('/helpers', helperRatingRouter); 
+router.use('/helpers', helperRatingRouter);   // /:id/ratings (before `helpers`)
 router.use('/helpers', helpers);
 router.use('/messages', messages);
 router.use('/conversations', conversationRouter);
-router.use('/uploads', uploads);
+router.use('/uploads', uploads); // signed URLs, no Bearer token
 
 export default router;

@@ -5,6 +5,7 @@ import { verifyAccessToken } from '../utils/tokens.js';
 import { logger } from '../utils/logger.js';
 import { setIO } from './io.js';
 import { rooms } from './rooms.js';
+import { attachRedisAdapter } from './adapter.js';
 import { registerRequestHandlers } from './request.handlers.js';
 import { registerHelperHandlers } from './helper.handlers.js';
 import { registerChatHandlers } from './chat.handlers.js';
@@ -93,9 +94,11 @@ export function initSocket(httpServer) {
     maxHttpBufferSize: 1e5, // 100 KB per message; file uploads go through REST
     pingInterval: 25_000,
     pingTimeout: 20_000,
-    connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000 }, // brief network drops
+    // Note: state recovery does not work with the Redis pub/sub adapter; clients reconnect
+    // as new sockets and syncOnConnect rebuilds their rooms.
   });
   setIO(io);
+  const closeAdapter = attachRedisAdapter(io);
 
   io.use(authenticateSocket);
 
@@ -121,5 +124,5 @@ export function initSocket(httpServer) {
     });
   });
 
-  return io;
+  return { io, closeAdapter };
 }

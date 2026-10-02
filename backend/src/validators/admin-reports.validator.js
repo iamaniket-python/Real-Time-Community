@@ -23,6 +23,6 @@ export const auditLogSchema = z.object({
   query: z.object({
     action: z.string().trim().regex(/^[A-Z_]{2,50}$/, 'Invalid action').optional(),
     limit: z.coerce.number().int().min(1).max(50).default(30),
-    cursor: z.string().max(200).optional(),
+    cursor: z.string().regex(/^\d{1,18}$/, 'Invalid cursor').optional(),
   }),
 });

@@ -1,15 +1,26 @@
 import { query, withTransaction } from '../config/db.js';
 import { conflict, notFound } from '../utils/AppError.js';
 
-const audit = (c, adminId, action, targetType, targetId, details) =>
+const audit = (c, adminId, action, targetType, targetId, metadata) =>
   c.query(
-    `INSERT INTO admin_actions (admin_id, action, target_type, target_id, details)
-     VALUES ($1, $2, $3, $4, $5::jsonb)`,
-    [adminId, action, targetType, targetId, JSON.stringify(details ?? {})]);
+    `INSERT INTO admin_actions (admin_id, action, target_type, target_id, metadata)
+     VALUES ($1, $2, $3, $4::text, $5::jsonb)`,
+    [adminId, action, targetType, String(targetId), JSON.stringify(metadata ?? {})]);
 
-const toCategory = (c) => ({ id: c.id, name: c.name, isActive: c.is_active });
+const toCategory = (c) => ({ id: c.id, name: c.name, slug: c.slug, isActive: c.is_active });
 
-// 23505 = unique_violation
+const slugify = (name) => {
+  const s = name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return s || `category-${Date.now().toString(36)}`;
+};
+
+// 23505 = unique_violation (on the name or the slug)
 const uniqueToConflict = (err) => {
   if (err.code === '23505') throw conflict('CATEGORY_EXISTS', 'A category with this name already exists');
   throw err;
@@ -19,8 +30,9 @@ export async function createCategory(adminId, { name }) {
   try {
     return await withTransaction(async (c) => {
       const { rows } = await c.query(
-        'INSERT INTO categories (name) VALUES ($1) RETURNING id, name, is_active', [name]);
-      await audit(c, adminId, 'CATEGORY_CREATE', 'category', rows[0].id, { name });
+        'INSERT INTO categories (name, slug) VALUES ($1, $2) RETURNING id, name, slug, is_active',
+        [name, slugify(name)]);
+      await audit(c, adminId, 'CATEGORY_CREATE', 'category', rows[0].id, { name, slug: rows[0].slug });
       return { category: toCategory(rows[0]) };
     });
   } catch (err) {
@@ -35,11 +47,14 @@ export async function updateCategory(adminId, categoryId, { name, isActive }) {
         'SELECT id, name, is_active FROM categories WHERE id = $1 FOR UPDATE', [categoryId]);
       if (!cur.rows[0]) throw notFound('CATEGORY_NOT_FOUND', 'Category not found');
 
+      // The slug is kept on rename so existing links keep working
       const { rows } = await c.query(
         `UPDATE categories
-            SET name = COALESCE($2, name), is_active = COALESCE($3::boolean, is_active)
+            SET name = COALESCE($2, name),
+                is_active = COALESCE($3::boolean, is_active),
+                updated_at = now()
           WHERE id = $1
-          RETURNING id, name, is_active`,
+          RETURNING id, name, slug, is_active`,
         [categoryId, name ?? null, isActive ?? null]);
       await audit(c, adminId, 'CATEGORY_UPDATE', 'category', categoryId, {
         from: { name: cur.rows[0].name, isActive: cur.rows[0].is_active },
@@ -87,7 +102,7 @@ export async function getStats() {
     await Promise.all([
       grouped('SELECT role::text AS k, count(*)::int AS n FROM users GROUP BY 1'),
       grouped('SELECT status::text AS k, count(*)::int AS n FROM users GROUP BY 1'),
-      grouped('SELECT verification_status::text AS k, count(*)::int AS n FROM helper_profiles GROUP BY 1'),
+      grouped('SELECT verification::text AS k, count(*)::int AS n FROM helper_profiles GROUP BY 1'),
       grouped('SELECT status::text AS k, count(*)::int AS n FROM help_requests GROUP BY 1'),
       grouped('SELECT status::text AS k, count(*)::int AS n FROM reports GROUP BY 1'),
       query(`SELECT count(*)::int AS n, round(avg(score)::numeric, 2) AS avg FROM ratings`),

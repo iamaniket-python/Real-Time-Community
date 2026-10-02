@@ -55,27 +55,28 @@ export async function updateReportStatus(adminId, reportId, status, note) {
     }
     if (r.status === status) throw conflict('ALREADY_IN_STATUS', `Report is already ${status}`);
 
-    await c.query('UPDATE reports SET status = $2::report_status WHERE id = $1', [reportId, status]);
     await c.query(
-      `INSERT INTO admin_actions (admin_id, action, target_type, target_id, details)
-       VALUES ($1, 'REPORT_STATUS_CHANGE', 'report', $2, $3::jsonb)`,
+      'UPDATE reports SET status = $2::report_status, updated_at = now() WHERE id = $1',
+      [reportId, status]);
+    await c.query(
+      `INSERT INTO admin_actions (admin_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'REPORT_STATUS_CHANGE', 'report', $2::text, $3::jsonb)`,
       [adminId, reportId, JSON.stringify({ from: r.status, to: status, note: note ?? null })]);
     return { reportId, status };
   });
 }
 
+/** admin_actions.id is a bigint, so the cursor is just the last id seen. */
 export async function listAuditLog({ action, limit, cursor }) {
-  const cur = cursor ? decodeCursor(cursor) : { ts: null, id: null };
   const { rows } = await query(
-    `SELECT a.id::text AS id, a.action, a.target_type, a.target_id::text AS target_id,
-            a.details, a.created_at, a.created_at::text AS cursor_ts,
-            a.admin_id, u.name AS admin_name
+    `SELECT a.id::text AS id, a.action, a.target_type, a.target_id,
+            a.metadata, a.created_at, a.admin_id, u.name AS admin_name
        FROM admin_actions a LEFT JOIN users u ON u.id = a.admin_id
       WHERE ($1::text IS NULL OR a.action = $1)
-        AND ($2::timestamptz IS NULL OR (a.created_at, a.id::text) < ($2::timestamptz, $3::text))
-      ORDER BY a.created_at DESC, a.id::text DESC
-      LIMIT $4`,
-    [action ?? null, cur.ts, cur.id, limit + 1]);
+        AND ($2::bigint IS NULL OR a.id < $2::bigint)
+      ORDER BY a.id DESC
+      LIMIT $3`,
+    [action ?? null, cursor ?? null, limit + 1]);
 
   const { items, hasMore } = page(rows, limit);
   const last = items[items.length - 1];
@@ -85,10 +86,10 @@ export async function listAuditLog({ action, limit, cursor }) {
       action: a.action,
       targetType: a.target_type,
       targetId: a.target_id,
-      details: a.details,
+      details: a.metadata,
       createdAt: a.created_at,
       admin: { id: a.admin_id, name: a.admin_name },
     })),
-    nextCursor: hasMore ? encodeCursor(last.cursor_ts, last.id) : null,
+    nextCursor: hasMore ? last.id : null,
   };
 }

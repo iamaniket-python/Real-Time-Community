@@ -1,15 +1,29 @@
-@"
-node_modules/
+# Dependencies
+node_modules
+
+# Environment variables (never commit secrets)
 .env
 .env.*
 !.env.example
+
+# User uploads (stored on a persistent disk in production)
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+logs
 *.log
 npm-debug.log*
-coverage/
-dist/
-uploads/
-.DS_Store
-"@ | Set-Content -Path .gitignore -Encoding utf8
-.env
+yarn-debug.log*
+yarn-error.log*
 
-uploads/
+# Build output and coverage
+dist
+coverage
+
+# Editor and OS files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
