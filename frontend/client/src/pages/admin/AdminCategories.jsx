@@ -4,9 +4,10 @@ import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import ReasonDialog from '../../components/ReasonDialog';
+import CategoryRow from '../../components/admin/CategoryRow';
 
 export default function AdminCategories() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -18,6 +19,7 @@ export default function AdminCategories() {
       setItems(Array.isArray(d) ? d : d?.categories || []);
     } catch (e) {
       setError(e.message || 'Could not load categories.');
+      setItems((p) => p || []);
     }
   }, []);
   useEffect(() => {
@@ -59,32 +61,44 @@ export default function AdminCategories() {
 
   const isRename = dialog?.kind === 'rename';
   const activating = dialog?.c?.isActive === false;
+  const list = items || [];
+  const off = list.filter((c) => c.isActive === false).length;
 
   return (
     <PageShell title="Categories" subtitle="Manage the kinds of help people can request.">
-      <Card>
-        <form onSubmit={add} className="mb-5 flex gap-2">
+      <Card className="!p-4 sm:!p-6">
+        <form onSubmit={add} className="flex flex-col gap-2 sm:flex-row">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name"
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100" />
-          <Button type="submit" loading={busy}>Add</Button>
+            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100" />
+          <Button type="submit" loading={busy} className="w-full sm:w-auto">+ Add category</Button>
         </form>
-        {error && <p className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-        <ul className="divide-y divide-slate-100">
-          {items.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-3 py-3">
-              <span className={c.isActive === false ? 'text-slate-400 line-through' : 'font-medium text-slate-800'}>
-                {c.name}
-              </span>
-              <div className="flex gap-2">
-                <Button variant="ghost" disabled={busy} onClick={() => setDialog({ kind: 'rename', c })}>Rename</Button>
-                <Button variant="secondary" disabled={busy} onClick={() => setDialog({ kind: 'toggle', c })}>
-                  {c.isActive === false ? 'Activate' : 'Deactivate'}
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {!items.length && !error && <p className="py-6 text-center text-slate-500">No categories yet.</p>}
+        {items && (
+          <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">{list.length - off} active</span>
+            <span className="rounded-full bg-slate-200 px-3 py-1 text-slate-600">{off} inactive</span>
+          </div>
+        )}
+        {error && <p className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+        <div className="mt-4">
+          {!items && (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-100" />)}
+            </div>
+          )}
+          {items && !list.length && !error && (
+            <div className="py-10 text-center">
+              <p className="text-4xl">🗂️</p>
+              <p className="mt-2 text-slate-500">No categories yet. Add the first one above.</p>
+            </div>
+          )}
+          <ul className="space-y-3">
+            {list.map((c) => (
+              <CategoryRow key={c.id} c={c} busy={busy}
+                onRename={(x) => setDialog({ kind: 'rename', c: x })}
+                onToggle={(x) => setDialog({ kind: 'toggle', c: x })} />
+            ))}
+          </ul>
+        </div>
       </Card>
 
       <ReasonDialog
@@ -106,8 +120,8 @@ export default function AdminCategories() {
           isRename
             ? ''
             : activating
-              ? 'Ye category dobara requests ke liye available ho jaayegi.'
-              : 'Naye requests mein ye category nahi dikhegi.'
+              ? 'This category will be available for new requests again.'
+              : 'This category will no longer appear in new requests.'
         }
         label="New name"
         placeholder="Category name"

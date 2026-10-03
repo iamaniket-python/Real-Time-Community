@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { listHelpers, helperAction } from '../../api/admin';
 import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
-import StatusBadge from '../../components/ui/StatusBadge';
 import ReasonDialog from '../../components/ReasonDialog';
+import HelperRow from '../../components/admin/HelperRow';
 
-const TABS = ['PENDING', 'VERIFIED', 'REJECTED', 'SUSPENDED'];
+const TABS = [
+  ['PENDING', '⏳', 'Pending'],
+  ['VERIFIED', '✅', 'Verified'],
+  ['REJECTED', '❌', 'Rejected'],
+  ['SUSPENDED', '⛔', 'Suspended'],
+];
 const ACTIONS = {
   PENDING: [['verify', 'Verify', 'primary'], ['reject', 'Reject', 'danger']],
   VERIFIED: [['suspend', 'Suspend', 'danger']],
@@ -57,51 +61,47 @@ export default function AdminHelpers() {
 
   const danger = dialog?.variant === 'danger';
   const isVerify = dialog?.action === 'verify';
+  const current = TABS.find((t) => t[0] === tab);
 
   return (
     <PageShell title="Helpers" subtitle="Review and manage helper applications.">
-      <Card>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {TABS.map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                tab === t ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50'
+      <Card className="!p-4 sm:!p-6">
+        <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+          {TABS.map(([key, icon, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
+                tab === key ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50'
               }`}>
-              {t.charAt(0) + t.slice(1).toLowerCase()}
+              <span>{icon}</span>{label}
             </button>
           ))}
         </div>
         {error && <p className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-        {loading && <p className="py-8 text-center text-slate-400">Loading…</p>}
-        {!loading && !items.length && !error && (
-          <p className="py-8 text-center text-slate-500">No {tab.toLowerCase()} helpers.</p>
+        {loading && (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}
+          </div>
         )}
-        <ul className="divide-y divide-slate-100">
-          {items.map((h) => {
-            const u = h.user || {};
-            return (
-              <li key={h.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-slate-800">{u.name || h.name || `Helper #${h.id}`}</p>
-                  <p className="text-xs text-slate-500">{u.email || h.email}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge status={h.status || tab} />
-                  {ACTIONS[tab].map(([a, label, v]) => (
-                    <Button key={a} variant={v} loading={busyId === h.id} onClick={() => ask(h, a, label, v)}>{label}</Button>
-                  ))}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        {!loading && !items.length && !error && (
+          <div className="py-10 text-center">
+            <p className="text-4xl">{current[1]}</p>
+            <p className="mt-2 text-slate-500">No {current[2].toLowerCase()} helpers right now.</p>
+          </div>
+        )}
+        {!loading && (
+          <ul className="space-y-3">
+            {items.map((h) => (
+              <HelperRow key={h.id} h={h} tab={tab} actions={ACTIONS[tab]} busy={busyId === h.id} onAsk={ask} />
+            ))}
+          </ul>
+        )}
       </Card>
 
       <ReasonDialog
         open={!!dialog}
         tone={danger ? 'danger' : 'primary'}
         title={dialog ? `${dialog.label} ${dialog.name}?` : ''}
-        message={isVerify ? 'Helper ko verify karne par wo requests accept kar payega.' : 'Ye action audit log mein record hoga.'}
+        message={isVerify ? 'Once verified, this helper can accept requests.' : 'This action will be recorded in the audit log.'}
         label={isVerify ? 'Note (not sent)' : 'Reason (optional)'}
         placeholder={isVerify ? 'Optional note' : 'Write a short reason...'}
         confirmText={dialog?.label || 'Confirm'}
