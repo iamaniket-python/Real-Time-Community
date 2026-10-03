@@ -1,0 +1,13 @@
+import { api } from './client';
+
+export const listHelpers = (status) =>
+  api(`/admin/helpers?status=${encodeURIComponent(status)}`);
+export const helperAction = (id, action, reason) =>
+  api(`/admin/helpers/${id}/${action}`, { method: 'POST', body: { reason } });
+
+export const listReports = () => api('/admin/reports');
+export const updateReport = (id, status, note) =>
+  api(`/admin/reports/${id}`, { method: 'PATCH', body: { status, note } });
+
+export const blockUser = (id) => api(`/admin/users/${id}/block`, { method: 'POST' });
+export const unblockUser = (id) => api(`/admin/users/${id}/unblock`, { method: 'POST' });

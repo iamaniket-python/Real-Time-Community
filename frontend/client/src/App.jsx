@@ -13,6 +13,8 @@ import Probe from './pages/user/Probe';
 import ProbeNotif from './pages/user/ProbeNotif';
 import HelperDashboard from './pages/helper/HelperDashboard';
 import HelperJobs from './pages/helper/HelperJobs';
+import AdminHelpers from './pages/admin/AdminHelpers';
+import AdminReports from './pages/admin/AdminReports';
 
 export default function App() {
   return (
@@ -39,6 +41,8 @@ export default function App() {
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<Layout />}>
           <Route path="/admin" element={<HomePage />} />
+          <Route path="/admin/helpers" element={<AdminHelpers />} />
+          <Route path="/admin/reports" element={<AdminReports />} />
         </Route>
       </Route>
       <Route element={<ProtectedRoute roles={['USER', 'HELPER', 'ADMIN']} />}>

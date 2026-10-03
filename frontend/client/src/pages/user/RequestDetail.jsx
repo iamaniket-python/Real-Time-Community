@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { cancelRequest, getRequest } from '../../api/requests';
+import useRequestLive from '../../hooks/useRequestLive';
 import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -8,6 +9,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import RequestImage from '../../components/RequestImage';
 import RatingForm from '../../components/RatingForm';
 import ReportForm from '../../components/ReportForm';
+import HelperTracker from '../../components/HelperTracker';
 
 const CANCELLABLE = ['PENDING', 'SEARCHING', 'ACCEPTED', 'ARRIVING'];
 const CHAT_OPEN = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS'];
@@ -31,6 +33,8 @@ export default function RequestDetail() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const helperPos = useRequestLive(id, load);
 
   async function cancel() {
     if (!window.confirm('Cancel this request?')) return;
@@ -64,6 +68,7 @@ export default function RequestDetail() {
             </div>
             <p className="whitespace-pre-wrap text-slate-700">{req.description}</p>
             <RequestImage requestId={req.id} />
+            {CHAT_OPEN.includes(req.status) && <HelperTracker request={req} helperPos={helperPos} />}
             {CHAT_OPEN.includes(req.status) && (
               <Link to={`/chat/${req.id}`} className="block">
                 <Button className="w-full">Open chat with your helper</Button>

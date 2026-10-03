@@ -12,7 +12,11 @@ const LINKS = {
     ['/helper', 'Dashboard'],
     ['/helper/jobs', 'My jobs'],
   ],
-  ADMIN: [['/admin', 'Admin']],
+  ADMIN: [
+    ['/admin', 'Home'],
+    ['/admin/helpers', 'Helpers'],
+    ['/admin/reports', 'Reports'],
+  ],
 };
 
 const linkClass = ({ isActive }) =>
