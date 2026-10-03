@@ -7,6 +7,7 @@ import RegisterPage from './pages/Authentication/RegisterPage';
 import HomePage from './pages/shared/HomePage';
 import NotificationsPage from './pages/shared/NotificationsPage';
 import ChatPage from './pages/shared/ChatPage';
+import ErrorPage from './pages/shared/ErrorPage';
 import CreateRequestPage from './pages/user/CreateRequestPage';
 import MyRequests from './pages/user/MyRequests';
 import RequestDetail from './pages/user/RequestDetail';
@@ -24,8 +25,10 @@ import AdminAudit from './pages/admin/AdminAudit';
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/error/:code" element={<ErrorPage />} />
       <Route element={<ProtectedRoute roles={['USER']} />}>
         <Route element={<Layout />}>
           <Route path="/user" element={<HomePage />} />
@@ -61,7 +64,7 @@ export default function App() {
           <Route path="/chat/:requestId" element={<ChatPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<ErrorPage code={404} />} />
     </Routes>
   );
 }
