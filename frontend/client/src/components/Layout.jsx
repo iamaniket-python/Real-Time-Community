@@ -12,14 +12,7 @@ const LINKS = {
     ['/helper', 'Dashboard'],
     ['/helper/jobs', 'My jobs'],
   ],
-  ADMIN: [
-    ['/admin', 'Home'],
-    ['/admin/helpers', 'Helpers'],
-    ['/admin/reports', 'Reports'],
-    ['/admin/categories', 'Categories'],
-    ['/admin/stats', 'Stats'],
-    ['/admin/audit', 'Audit'],
-  ],
+  ADMIN: [],
 };
 
 const linkClass = ({ isActive }) =>
@@ -53,9 +46,11 @@ export default function Layout() {
             Log out
           </Button>
         </div>
-        <div className="overflow-x-auto border-t border-slate-100 sm:hidden">
-          <div className="flex w-max gap-1 px-3 py-2">{items}</div>
-        </div>
+        {items.length > 0 && (
+          <div className="overflow-x-auto border-t border-slate-100 sm:hidden">
+            <div className="flex w-max gap-1 px-3 py-2">{items}</div>
+          </div>
+        )}
       </nav>
       <div className="flex-1">
         <Outlet />
