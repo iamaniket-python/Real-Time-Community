@@ -26,6 +26,12 @@ const uniqueToConflict = (err) => {
   throw err;
 };
 
+export async function listCategories() {
+  const { rows } = await query(
+    'SELECT id, name, slug, is_active FROM categories ORDER BY id');
+  return { categories: rows.map(toCategory) };
+}
+
 export async function createCategory(adminId, { name }) {
   try {
     return await withTransaction(async (c) => {

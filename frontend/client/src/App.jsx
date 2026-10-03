@@ -1,6 +1,7 @@
 ﻿import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './routes/ProtectedRoute';
 import Layout from './components/Layout';
+import AdminLayout from './components/AdminLayout';
 import LoginPage from './pages/Authentication/Loginpage';
 import RegisterPage from './pages/Authentication/RegisterPage';
 import HomePage from './pages/shared/HomePage';
@@ -13,6 +14,7 @@ import Probe from './pages/user/Probe';
 import ProbeNotif from './pages/user/ProbeNotif';
 import HelperDashboard from './pages/helper/HelperDashboard';
 import HelperJobs from './pages/helper/HelperJobs';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHelpers from './pages/admin/AdminHelpers';
 import AdminReports from './pages/admin/AdminReports';
 import AdminCategories from './pages/admin/AdminCategories';
@@ -43,12 +45,14 @@ export default function App() {
       </Route>
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<Layout />}>
-          <Route path="/admin" element={<HomePage />} />
-          <Route path="/admin/helpers" element={<AdminHelpers />} />
-          <Route path="/admin/reports" element={<AdminReports />} />
-          <Route path="/admin/categories" element={<AdminCategories />} />
-          <Route path="/admin/stats" element={<AdminStats />} />
-          <Route path="/admin/audit" element={<AdminAudit />} />
+          <Route element={<AdminLayout />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/helpers" element={<AdminHelpers />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/categories" element={<AdminCategories />} />
+            <Route path="/admin/stats" element={<AdminStats />} />
+            <Route path="/admin/audit" element={<AdminAudit />} />
+          </Route>
         </Route>
       </Route>
       <Route element={<ProtectedRoute roles={['USER', 'HELPER', 'ADMIN']} />}>

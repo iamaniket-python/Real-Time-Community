@@ -12,6 +12,7 @@ export const updateReport = (id, status, note) =>
 export const blockUser = (id) => api(`/admin/users/${id}/block`, { method: 'POST' });
 export const unblockUser = (id) => api(`/admin/users/${id}/unblock`, { method: 'POST' });
 
+export const listAdminCategories = () => api('/admin/categories');
 export const createCategory = (name) =>
   api('/admin/categories', { method: 'POST', body: { name } });
 export const updateCategory = (id, patch) =>

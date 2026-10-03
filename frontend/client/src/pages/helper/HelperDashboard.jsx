@@ -28,12 +28,20 @@ export default function HelperDashboard() {
       setError(e.message || 'Could not load your profile.');
     }
   }, []);
+
   useEffect(() => {
     load();
   }, [load]);
 
-  const online = !!p?.isAvailable;
-  const status = p?.status || p?.verificationStatus;
+  // Admin ne verify kiya ho to page dobara focus mein aate hi naya status aa jaaye
+  useEffect(() => {
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [load]);
+
+  const online = !!(p?.isAvailable ?? p?.is_available);
+  const status = p?.verification || p?.verificationStatus || p?.status;
   useShareLocation(online);
 
   async function toggle() {
@@ -75,6 +83,11 @@ export default function HelperDashboard() {
                       ? 'You are online and sharing your location.'
                       : 'You are offline.'}
                 </p>
+                {!status && (
+                  <p className="text-xs text-amber-600">
+                    Status field nahi mila. Response keys: {Object.keys(p).join(', ')}
+                  </p>
+                )}
               </div>
               <Button
                 variant={online ? 'danger' : 'primary'}

@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getCategories } from '../../api/categories';
-import { createCategory, updateCategory } from '../../api/admin';
+import { listAdminCategories, createCategory, updateCategory } from '../../api/admin';
 import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
+import ReasonDialog from '../../components/ReasonDialog';
 
 export default function AdminCategories() {
   const [items, setItems] = useState([]);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const d = await getCategories();
+      const d = await listAdminCategories();
       setItems(Array.isArray(d) ? d : d?.categories || []);
     } catch (e) {
       setError(e.message || 'Could not load categories.');
@@ -30,7 +31,8 @@ export default function AdminCategories() {
       await fn();
       await load();
     } catch (e) {
-      setError(e.message || 'Action failed.');
+      const d = e.details?.map((x) => x.message).join(', ');
+      setError(d || e.message || 'Action failed.');
     }
     setBusy(false);
   }
@@ -44,10 +46,19 @@ export default function AdminCategories() {
     });
   }
 
-  function rename(c) {
-    const n = window.prompt('New name:', c.name);
-    if (n && n.trim() && n.trim() !== c.name) run(() => updateCategory(c.id, { name: n.trim() }));
+  function confirm(value) {
+    const d = dialog;
+    setDialog(null);
+    if (d.kind === 'rename') {
+      if (value && value !== d.c.name) run(() => updateCategory(d.c.id, { name: value }));
+    } else {
+      const makeActive = d.c.isActive === false;
+      run(() => updateCategory(d.c.id, { isActive: makeActive }));
+    }
   }
+
+  const isRename = dialog?.kind === 'rename';
+  const activating = dialog?.c?.isActive === false;
 
   return (
     <PageShell title="Categories" subtitle="Manage the kinds of help people can request.">
@@ -65,9 +76,8 @@ export default function AdminCategories() {
                 {c.name}
               </span>
               <div className="flex gap-2">
-                <Button variant="ghost" disabled={busy} onClick={() => rename(c)}>Rename</Button>
-                <Button variant="secondary" disabled={busy}
-                  onClick={() => run(() => updateCategory(c.id, { isActive: c.isActive === false }))}>
+                <Button variant="ghost" disabled={busy} onClick={() => setDialog({ kind: 'rename', c })}>Rename</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => setDialog({ kind: 'toggle', c })}>
                   {c.isActive === false ? 'Activate' : 'Deactivate'}
                 </Button>
               </div>
@@ -76,6 +86,35 @@ export default function AdminCategories() {
         </ul>
         {!items.length && !error && <p className="py-6 text-center text-slate-500">No categories yet.</p>}
       </Card>
+
+      <ReasonDialog
+        open={!!dialog}
+        key={dialog ? `${dialog.kind}-${dialog.c.id}` : 'closed'}
+        tone={isRename || activating ? 'primary' : 'danger'}
+        hideInput={!isRename}
+        required={isRename}
+        rows={1}
+        initialValue={isRename ? dialog.c.name : ''}
+        title={
+          isRename
+            ? 'Rename category'
+            : dialog
+              ? `${activating ? 'Activate' : 'Deactivate'} "${dialog.c.name}"?`
+              : ''
+        }
+        message={
+          isRename
+            ? ''
+            : activating
+              ? 'Ye category dobara requests ke liye available ho jaayegi.'
+              : 'Naye requests mein ye category nahi dikhegi.'
+        }
+        label="New name"
+        placeholder="Category name"
+        confirmText={isRename ? 'Save' : activating ? 'Activate' : 'Deactivate'}
+        onConfirm={confirm}
+        onCancel={() => setDialog(null)}
+      />
     </PageShell>
   );
 }

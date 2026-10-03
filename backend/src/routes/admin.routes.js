@@ -25,6 +25,7 @@ router.get('/reports',        validate(listReportsSchema),  wrap(r.reports));
 router.patch('/reports/:id',  validate(updateReportSchema), wrap(r.updateReport));
 router.get('/audit-log',      validate(auditLogSchema),     wrap(r.auditLog));
 
+router.get('/categories',       wrap(o.listCategories));
 router.post('/categories',      validate(createCategorySchema), wrap(o.createCategory));
 router.patch('/categories/:id', validate(updateCategorySchema), wrap(o.updateCategory));
 router.get('/requests/active',  validate(activeRequestsSchema), wrap(o.activeRequests));

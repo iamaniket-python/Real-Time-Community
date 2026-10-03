@@ -4,6 +4,7 @@ import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import StatusBadge from '../../components/ui/StatusBadge';
+import ReasonDialog from '../../components/ReasonDialog';
 
 const TABS = ['PENDING', 'VERIFIED', 'REJECTED', 'SUSPENDED'];
 const ACTIONS = {
@@ -19,6 +20,7 @@ export default function AdminHelpers() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,22 +37,26 @@ export default function AdminHelpers() {
     load();
   }, [load]);
 
-  async function act(id, action) {
-    let reason;
-    if (action !== 'verify') {
-      reason = window.prompt('Reason (optional):');
-      if (reason === null) return;
-    }
+  function ask(h, action, label, variant) {
+    setDialog({ id: h.id, name: h.user?.name || h.name || `Helper #${h.id}`, action, label, variant });
+  }
+
+  async function confirm(reason) {
+    const { id, action } = dialog;
+    setDialog(null);
     setBusyId(id);
     setError('');
     try {
-      await helperAction(id, action, reason?.trim() || undefined);
+      await helperAction(id, action, action === 'verify' ? undefined : reason || undefined);
       await load();
     } catch (e) {
       setError(e.message || 'Action failed.');
     }
     setBusyId(null);
   }
+
+  const danger = dialog?.variant === 'danger';
+  const isVerify = dialog?.action === 'verify';
 
   return (
     <PageShell title="Helpers" subtitle="Review and manage helper applications.">
@@ -82,7 +88,7 @@ export default function AdminHelpers() {
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={h.status || tab} />
                   {ACTIONS[tab].map(([a, label, v]) => (
-                    <Button key={a} variant={v} loading={busyId === h.id} onClick={() => act(h.id, a)}>{label}</Button>
+                    <Button key={a} variant={v} loading={busyId === h.id} onClick={() => ask(h, a, label, v)}>{label}</Button>
                   ))}
                 </div>
               </li>
@@ -90,6 +96,18 @@ export default function AdminHelpers() {
           })}
         </ul>
       </Card>
+
+      <ReasonDialog
+        open={!!dialog}
+        tone={danger ? 'danger' : 'primary'}
+        title={dialog ? `${dialog.label} ${dialog.name}?` : ''}
+        message={isVerify ? 'Helper ko verify karne par wo requests accept kar payega.' : 'Ye action audit log mein record hoga.'}
+        label={isVerify ? 'Note (not sent)' : 'Reason (optional)'}
+        placeholder={isVerify ? 'Optional note' : 'Write a short reason...'}
+        confirmText={dialog?.label || 'Confirm'}
+        onConfirm={confirm}
+        onCancel={() => setDialog(null)}
+      />
     </PageShell>
   );
 }
