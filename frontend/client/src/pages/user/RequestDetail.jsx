@@ -6,9 +6,12 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import StatusBadge from '../../components/ui/StatusBadge';
 import RequestImage from '../../components/RequestImage';
+import RatingForm from '../../components/RatingForm';
+import ReportForm from '../../components/ReportForm';
 
 const CANCELLABLE = ['PENDING', 'SEARCHING', 'ACCEPTED', 'ARRIVING'];
 const CHAT_OPEN = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS'];
+const REPORTABLE = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'];
 
 export default function RequestDetail() {
   const { id } = useParams();
@@ -66,11 +69,13 @@ export default function RequestDetail() {
                 <Button className="w-full">Open chat with your helper</Button>
               </Link>
             )}
+            {req.status === 'COMPLETED' && <RatingForm requestId={req.id} />}
             {CANCELLABLE.includes(req.status) && (
               <Button variant="danger" loading={busy} onClick={cancel} className="w-full">
                 Cancel request
               </Button>
             )}
+            {REPORTABLE.includes(req.status) && <ReportForm requestId={req.id} />}
           </div>
         )}
       </Card>
