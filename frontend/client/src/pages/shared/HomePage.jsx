@@ -8,8 +8,8 @@ const CONTENT = {
     subtitle: 'Need a hand? Nearby helpers are ready.',
     cards: [
       { icon: '🆘', title: 'Ask for help', text: 'Post a request and get matched with a nearby helper.', to: '/user/new' },
-      { icon: '📋', title: 'My requests', text: 'Track status, chat and rate your helper.' },
-      { icon: '🔔', title: 'Notifications', text: 'See every update in one place.' },
+      { icon: '📋', title: 'My requests', text: 'Track status, chat and rate your helper.', to: '/requests' },
+      { icon: '🔔', title: 'Notifications', text: 'See every update in one place.', to: '/notifications' },
     ],
   },
   HELPER: {
@@ -35,7 +35,7 @@ export default function HomePage() {
   const { subtitle, cards } = CONTENT[user.role] || CONTENT.USER;
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-indigo-50 via-slate-50 to-white">
+    <main className="bg-gradient-to-b from-indigo-50 via-slate-50 to-white">
       <HomeHeader subtitle={subtitle} />
       <section className="mx-auto -mt-16 grid max-w-5xl gap-5 px-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => <ActionCard key={c.title} {...c} />)}
