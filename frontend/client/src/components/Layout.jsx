@@ -12,7 +12,6 @@ const LINKS = {
     ['/helper', 'Dashboard'],
     ['/helper/jobs', 'My jobs'],
   ],
-  ADMIN: [],
 };
 
 const linkClass = ({ isActive }) =>
