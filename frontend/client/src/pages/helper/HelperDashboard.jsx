@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import StatusBadge from '../../components/ui/StatusBadge';
 import HelperCategories from '../../components/HelperCategories';
 import IncomingList from '../../components/IncomingList';
+import ActiveJobCard from '../../components/ActiveJobCard';
 
 const getPos = () =>
   new Promise((res) =>
@@ -33,7 +34,6 @@ export default function HelperDashboard() {
     load();
   }, [load]);
 
-  // Admin ne verify kiya ho to page dobara focus mein aate hi naya status aa jaaye
   useEffect(() => {
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
@@ -65,12 +65,13 @@ export default function HelperDashboard() {
 
   return (
     <PageShell title="Helper dashboard" subtitle="Go online to receive nearby requests.">
-      <div className="space-y-6">
+      <div className="space-y-5">
+        {p && <ActiveJobCard />}
         <Card>
           {error && <p className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
           {!p && !error && <p className="py-6 text-center text-slate-400">Loading…</p>}
           {p && (
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-500">Verification</span>
@@ -85,7 +86,7 @@ export default function HelperDashboard() {
                 </p>
                 {!status && (
                   <p className="text-xs text-amber-600">
-                    Status field nahi mila. Response keys: {Object.keys(p).join(', ')}
+                    Status field not found. Response keys: {Object.keys(p).join(', ')}
                   </p>
                 )}
               </div>
@@ -94,6 +95,7 @@ export default function HelperDashboard() {
                 loading={busy}
                 disabled={status !== 'VERIFIED'}
                 onClick={toggle}
+                className="w-full sm:w-auto"
               >
                 {online ? 'Go offline' : 'Go online'}
               </Button>

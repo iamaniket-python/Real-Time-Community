@@ -17,7 +17,7 @@ export default function ChatPage() {
 
   return (
     <PageShell title="Chat" subtitle="Messages are only open while the job is active." action={back} narrow>
-      <Card>
+      <Card className="!p-3 sm:!p-6 [&_.h-72]:!h-[55vh] sm:[&_.h-72]:!h-96">
         <ChatBox requestId={requestId} />
       </Card>
     </PageShell>
