@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/auth-context';
 import { getSocket } from '../socket/socket';
-import { getConversation, getMessages, sendMessage, markConversationRead } from '../api/chat';
+import {
+  getConversation, getMessages, sendMessage, sendAttachment, markConversationRead,
+} from '../api/chat';
 import useChatTyping from './useChatTyping';
 
 const rows = (d) => (Array.isArray(d) ? d : d?.items || d?.messages || []);
@@ -64,20 +66,34 @@ export default function useChat(requestId) {
     };
   }, [convId, user.id, add]);
 
+  const guard = useCallback(async (fn) => {
+    setError('');
+    try {
+      const d = await fn();
+      add(d?.message || d);
+    } catch (e) {
+      if (e.errorCode === 'CHAT_CLOSED') setChatOpen(false);
+      else setError(e.message || 'Could not send.');
+      throw e;
+    }
+  }, [add]);
+
   const send = useCallback(
-    async (body) => {
-      setError('');
-      try {
-        const d = await sendMessage(convId, body, crypto.randomUUID());
-        add(d?.message || d);
-      } catch (e) {
-        if (e.errorCode === 'CHAT_CLOSED') setChatOpen(false);
-        else setError(e.message || 'Could not send.');
-        throw e;
-      }
-    },
-    [convId, add],
+    (body) => guard(() => sendMessage(convId, body, crypto.randomUUID())),
+    [convId, guard],
+  );
+  const sendFile = useCallback(
+    (file) => guard(() => sendAttachment(convId, file, '', crypto.randomUUID())),
+    [convId, guard],
   );
 
-  return { ready: !!convId, messages, chatOpen, loading, error, typing, send, notifyTyping, me: user.id };
+  const refresh = useCallback(async () => {
+    const fresh = rows(await getMessages(convId));
+    setMessages((p) => p.map((m) => fresh.find((x) => x.id === m.id) || m));
+  }, [convId]);
+
+  return {
+    ready: !!convId, messages, chatOpen, loading, error, typing,
+    send, sendFile, refresh, notifyTyping, me: user.id,
+  };
 }

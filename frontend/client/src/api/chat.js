@@ -11,3 +11,11 @@ export const sendMessage = (conversationId, body, clientId) =>
 
 export const markConversationRead = (conversationId) =>
   api(`/messages/${conversationId}/read`, { method: 'POST' });
+
+export function sendAttachment(conversationId, file, caption, clientId) {
+  const form = new FormData();
+  form.append('file', file);
+  if (caption) form.append('caption', caption);
+  form.append('clientId', clientId);
+  return api(`/messages/${conversationId}/attachments`, { method: 'POST', form });
+}
