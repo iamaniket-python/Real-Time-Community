@@ -11,3 +11,13 @@ export const updateReport = (id, status, note) =>
 
 export const blockUser = (id) => api(`/admin/users/${id}/block`, { method: 'POST' });
 export const unblockUser = (id) => api(`/admin/users/${id}/unblock`, { method: 'POST' });
+
+export const createCategory = (name) =>
+  api('/admin/categories', { method: 'POST', body: { name } });
+export const updateCategory = (id, patch) =>
+  api(`/admin/categories/${id}`, { method: 'PATCH', body: patch });
+
+export const getStats = () => api('/admin/stats');
+export const getActiveRequests = () => api('/admin/requests/active');
+export const getAuditLog = (cursor) =>
+  api(`/admin/audit-log${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);

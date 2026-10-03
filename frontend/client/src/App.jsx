@@ -15,6 +15,9 @@ import HelperDashboard from './pages/helper/HelperDashboard';
 import HelperJobs from './pages/helper/HelperJobs';
 import AdminHelpers from './pages/admin/AdminHelpers';
 import AdminReports from './pages/admin/AdminReports';
+import AdminCategories from './pages/admin/AdminCategories';
+import AdminStats from './pages/admin/AdminStats';
+import AdminAudit from './pages/admin/AdminAudit';
 
 export default function App() {
   return (
@@ -43,6 +46,9 @@ export default function App() {
           <Route path="/admin" element={<HomePage />} />
           <Route path="/admin/helpers" element={<AdminHelpers />} />
           <Route path="/admin/reports" element={<AdminReports />} />
+          <Route path="/admin/categories" element={<AdminCategories />} />
+          <Route path="/admin/stats" element={<AdminStats />} />
+          <Route path="/admin/audit" element={<AdminAudit />} />
         </Route>
       </Route>
       <Route element={<ProtectedRoute roles={['USER', 'HELPER', 'ADMIN']} />}>

@@ -16,6 +16,9 @@ const LINKS = {
     ['/admin', 'Home'],
     ['/admin/helpers', 'Helpers'],
     ['/admin/reports', 'Reports'],
+    ['/admin/categories', 'Categories'],
+    ['/admin/stats', 'Stats'],
+    ['/admin/audit', 'Audit'],
   ],
 };
 
