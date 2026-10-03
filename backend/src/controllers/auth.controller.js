@@ -4,10 +4,10 @@ import { env, isProd } from '../config/env.js';
 const COOKIE = 'refreshToken';
 
 const cookieOptions = {
-  httpOnly: true,        // JavaScript in the browser can't read it (XSS protection)
-  secure: isProd,        // HTTPS only in production
-  sameSite: 'strict',    // not sent on cross-site requests (CSRF protection)
-  path: '/api/auth',     // only sent to auth endpoints
+  httpOnly: true,                        // JavaScript in the browser can't read it (XSS protection)
+  secure: isProd,                        // HTTPS only in production
+  sameSite: isProd ? 'none' : 'strict',  // Vercel and Render are different sites, so production needs 'none'
+  path: '/api/auth',                     // only sent to auth endpoints
   maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
 };
 
