@@ -9,17 +9,20 @@ import { errorHandler, notFoundHandler } from './middleware/error.js';
 
 const app = express();
 
-app.set('trust proxy', 1);          
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(helmet());                 
-app.use(cors({ origin: env.CLIENT_URL, credentials: true })); 
+app.use(helmet());
+app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
 app.use(compression());
-app.use(express.json({ limit: '100kb' })); 
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+
+// Render health check (does not touch DB or Redis)
+app.get('/healthz', (_req, res) => res.status(200).json({ success: true, status: 'ok' }));
 
 app.use('/api', routes);
 
-app.use(notFoundHandler);           
-app.use(errorHandler);             
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

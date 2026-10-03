@@ -6,7 +6,7 @@ const schema = z.object({
   PORT: z.coerce.number().default(5000),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default('redis://localhost:6379'),
-  CLIENT_URL: z.string().url(),
+  CLIENT_URL: z.string().url().transform((u) => u.replace(/\/+$/, '')),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   UPLOAD_SECRET: z.string().min(32),
@@ -31,5 +31,11 @@ if (!parsed.success) {
   console.error('Invalid environment:', parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
+
+if (parsed.data.NODE_ENV === 'production' && !process.env.REDIS_URL) {
+  console.error('Invalid environment: REDIS_URL is required in production');
+  process.exit(1);
+}
+
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === 'production';

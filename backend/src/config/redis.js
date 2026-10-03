@@ -2,7 +2,30 @@ import Redis from 'ioredis';
 import { env } from './env.js';
 import { logger } from '../utils/logger.js';
 
-// Lazy: nothing connects until the first command, so scripts and tests can import this safely.
+// Safe summary of the connection target (no password, no full host) for debugging.
+function describeTarget(url) {
+  try {
+    const u = new URL(url);
+    return {
+      protocol: u.protocol.replace(':', ''),
+      isLocalhost: ['localhost', '127.0.0.1', '::1'].includes(u.hostname),
+      port: u.port || '(default)',
+    };
+  } catch {
+    return { invalidUrl: true };
+  }
+}
+
+// ioredis often throws an AggregateError with an empty message; dig out something useful.
+export function describeError(err) {
+  const inner = Array.isArray(err?.errors)
+    ? err.errors.map((e) => e.code || e.message).filter(Boolean).join(',')
+    : '';
+  return err?.message || err?.code || inner || String(err) || 'unknown';
+}
+
+logger.info({ redisTarget: describeTarget(env.REDIS_URL) }, 'redis config');
+
 // Redis outages must not crash the API: commands fail fast and callers fall back.
 export const redis = new Redis(env.REDIS_URL, {
   lazyConnect: false,
@@ -17,7 +40,7 @@ redis.on('error', (err) => {
   // ioredis emits this on every failed retry; log at most once per 30 s
   if (Date.now() - lastErrorLog > 30_000) {
     lastErrorLog = Date.now();
-    logger.warn({ err: err.message }, 'redis error');
+    logger.warn({ err: describeError(err), code: err?.code }, 'redis error');
   }
 });
 redis.on('ready', () => logger.info('redis ready'));
