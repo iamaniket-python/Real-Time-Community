@@ -9,6 +9,7 @@ import HelperCategories from '../../components/HelperCategories';
 import IncomingList from '../../components/IncomingList';
 import ActiveJobCard from '../../components/ActiveJobCard';
 import ProfileChecklist from '../../components/helper/ProfileChecklist';
+import AdminSupportCard from '../../components/helper/AdminSupportCard';
 
 const getPos = () =>
   new Promise((res) =>
@@ -78,6 +79,7 @@ export default function HelperDashboard() {
     <PageShell title="Helper dashboard" subtitle="Go online to receive nearby requests.">
       <div className="space-y-5">
         {p && <ActiveJobCard />}
+        {p && <AdminSupportCard />}
         <Card>
           {error && <p className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
           {!p && !error && <p className="py-6 text-center text-slate-400">Loading…</p>}

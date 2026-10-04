@@ -5,11 +5,11 @@ import ChatImage, { attachmentUrl } from './ChatImage';
 
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-export default function ChatBox({ requestId }) {
+export default function ChatBox({ requestId, conversationId }) {
   const {
     ready, messages, chatOpen, loading, error, typing,
     send, sendFile, refresh, notifyTyping, me,
-  } = useChat(requestId);
+  } = useChat(requestId, conversationId);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [fileErr, setFileErr] = useState('');

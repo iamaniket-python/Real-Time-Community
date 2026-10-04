@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getHelperDetail } from '../../api/adminHelper';
+import { openHelperChat } from '../../api/directChat';
 import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
 import StatusBadge from '../../components/ui/StatusBadge';
 import DocImage from '../../components/admin/DocImage';
 
@@ -17,8 +19,10 @@ function Row({ label, value }) {
 
 export default function AdminHelperDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [h, setH] = useState(null);
   const [error, setError] = useState('');
+  const [chatBusy, setChatBusy] = useState(false);
   const tries = useRef(0);
 
   const load = useCallback(async () => {
@@ -39,17 +43,34 @@ export default function AdminHelperDetail() {
     if (tries.current++ < 2) load();
   };
 
-  const back = (
-    <Link to="/admin/helpers" className="text-sm font-medium text-indigo-100 hover:text-white">
-      ← All helpers
-    </Link>
+  async function startChat() {
+    setChatBusy(true);
+    setError('');
+    try {
+      const d = await openHelperChat(id);
+      navigate(`/messages/${d.conversationId}`);
+    } catch (e) {
+      setError(e.message || 'Could not open the chat.');
+      setChatBusy(false);
+    }
+  }
+
+  const actions = (
+    <div className="flex items-center gap-3">
+      <Link to="/admin/helpers" className="text-sm font-medium text-indigo-100 hover:text-white">
+        ← All helpers
+      </Link>
+      {h && (
+        <Button variant="secondary" loading={chatBusy} onClick={startChat}>💬 Chat with helper</Button>
+      )}
+    </div>
   );
   const b = h?.business || {};
   const d = h?.documents || {};
 
   return (
-    <PageShell title={h?.name || 'Helper'} subtitle={h?.email} action={back}>
-      {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+    <PageShell title={h?.name || 'Helper'} subtitle={h?.email} action={actions}>
+      {error && <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
       {!h && !error && <div className="h-40 animate-pulse rounded-3xl bg-slate-100" />}
       {h && (
         <div className="space-y-5">

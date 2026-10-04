@@ -7,6 +7,7 @@ import RegisterPage from './pages/Authentication/RegisterPage';
 import HomePage from './pages/shared/HomePage';
 import NotificationsPage from './pages/shared/NotificationsPage';
 import ChatPage from './pages/shared/ChatPage';
+import ChatConversationPage from './pages/shared/ChatConversationPage';
 import ErrorPage from './pages/shared/ErrorPage';
 import CreateRequestPage from './pages/user/CreateRequestPage';
 import MyRequests from './pages/user/MyRequests';
@@ -66,6 +67,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/chat/:requestId" element={<ChatPage />} />
+          <Route path="/messages/:conversationId" element={<ChatConversationPage />} />
         </Route>
       </Route>
       <Route path="*" element={<ErrorPage code={404} />} />

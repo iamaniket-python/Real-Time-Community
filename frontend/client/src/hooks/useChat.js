@@ -8,7 +8,7 @@ import useChatTyping from './useChatTyping';
 
 const rows = (d) => (Array.isArray(d) ? d : d?.items || d?.messages || []);
 
-export default function useChat(requestId) {
+export default function useChat(requestId, directConvId) {
   const { user } = useAuth();
   const [convId, setConvId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -26,10 +26,13 @@ export default function useChat(requestId) {
     let off = false;
     (async () => {
       try {
-        const c = await getConversation(requestId);
-        const conv =
-          c?.conversation || c?.conversations?.[0] || c?.items?.[0] ||
-          (Array.isArray(c) ? c[0] : null) || (c?.id ? c : null);
+        let conv = directConvId ? { id: directConvId } : null;
+        if (!conv) {
+          const c = await getConversation(requestId);
+          conv =
+            c?.conversation || c?.conversations?.[0] || c?.items?.[0] ||
+            (Array.isArray(c) ? c[0] : null) || (c?.id ? c : null);
+        }
         if (!conv) throw new Error('Chat is not available for this request yet.');
         const d = await getMessages(conv.id);
         if (off) return;
@@ -45,7 +48,7 @@ export default function useChat(requestId) {
     return () => {
       off = true;
     };
-  }, [requestId]);
+  }, [requestId, directConvId]);
 
   useEffect(() => {
     const s = getSocket();
