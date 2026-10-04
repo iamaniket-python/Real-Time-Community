@@ -32,12 +32,12 @@ const uploadLimiter = makeLimiter({
 
 // /api/conversations
 export const conversationRouter = Router();
-conversationRouter.use(authenticate, authorize('USER', 'HELPER'));
+conversationRouter.use(authenticate, authorize('USER', 'HELPER', 'ADMIN'));
 conversationRouter.get('/', validate(listConversationsSchema), wrap(c.conversations));
 
 // /api/messages
 const router = Router();
-router.use(authenticate, authorize('USER', 'HELPER'));
+router.use(authenticate, authorize('USER', 'HELPER', 'ADMIN'));
 router.post('/', sendLimiter, validate(sendMessageSchema), wrap(c.send));
 router.post('/:conversationId/attachments',
   sendLimiter, uploadLimiter, uploadImage, validate(sendAttachmentSchema), wrap(attachment.send));

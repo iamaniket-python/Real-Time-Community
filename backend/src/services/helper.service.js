@@ -4,6 +4,11 @@ import { AppError, forbidden, notFound } from '../utils/AppError.js';
 const profileQuery = `
   SELECT hp.id, hp.bio, hp.verification, hp.is_available, hp.current_lat, hp.current_lng,
          hp.location_updated_at, hp.rating_avg, hp.rating_count,
+         (hp.business_name IS NOT NULL AND hp.business_address IS NOT NULL
+          AND hp.experience_years IS NOT NULL AND hp.gst_number IS NOT NULL
+          AND hp.aadhaar_number IS NOT NULL AND hp.pan_number IS NOT NULL) AS business_complete,
+         (hp.aadhaar_image_path IS NOT NULL AND hp.pan_image_path IS NOT NULL
+          AND hp.shop_image_path IS NOT NULL) AS documents_complete,
          COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name) ORDER BY c.id)
                      FROM helper_categories hc JOIN categories c ON c.id = hc.category_id
                     WHERE hc.helper_id = hp.id), '[]'::json) AS categories
@@ -19,6 +24,8 @@ const toDto = (p) => ({
   locationUpdatedAt: p.location_updated_at,
   ratingAvg: Number(p.rating_avg),
   ratingCount: p.rating_count,
+  businessComplete: p.business_complete,
+  documentsComplete: p.documents_complete,
   categories: p.categories,
 });
 
@@ -51,13 +58,22 @@ export async function setCategories(userId, categoryIds) {
 export async function setAvailability(userId, { isAvailable, lat, lng }) {
   const hp = (await query(
     `SELECT id, verification,
-            EXISTS (SELECT 1 FROM helper_categories WHERE helper_id = helper_profiles.id) AS has_categories
+            EXISTS (SELECT 1 FROM helper_categories WHERE helper_id = helper_profiles.id) AS has_categories,
+            (business_name IS NOT NULL AND business_address IS NOT NULL
+             AND experience_years IS NOT NULL AND gst_number IS NOT NULL
+             AND aadhaar_number IS NOT NULL AND pan_number IS NOT NULL) AS business_complete,
+            (aadhaar_image_path IS NOT NULL AND pan_image_path IS NOT NULL
+             AND shop_image_path IS NOT NULL) AS documents_complete
        FROM helper_profiles WHERE user_id = $1`, [userId])).rows[0];
   if (!hp) throw notFound('HELPER_PROFILE_NOT_FOUND', 'Helper profile not found');
 
   if (isAvailable) {
     if (hp.verification !== 'VERIFIED') {
       throw forbidden('HELPER_NOT_VERIFIED', 'Your profile must be verified before you can go online');
+    }
+    if (!hp.business_complete || !hp.documents_complete) {
+      throw new AppError(422, 'PROFILE_INCOMPLETE',
+        'Complete your business details and upload all three images before going online');
     }
     if (!hp.has_categories) {
       throw new AppError(422, 'NO_CATEGORIES', 'Select at least one service before going online');

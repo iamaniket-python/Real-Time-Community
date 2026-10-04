@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as c from '../controllers/admin.controller.js';
 import * as r from '../controllers/admin-reports.controller.js';
 import * as o from '../controllers/admin-ops.controller.js';
+import * as d from '../controllers/admin-helper-detail.controller.js';
+import * as ac from '../controllers/admin-chat.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { listHelpersSchema, helperActionSchema, userActionSchema } from '../validators/admin.validator.js';
@@ -15,6 +17,8 @@ const router = Router();
 router.use(authenticate, authorize('ADMIN'));
 
 router.get('/helpers', validate(listHelpersSchema), wrap(c.helpers));
+router.get('/helpers/:id', wrap(d.detail));
+router.post('/helpers/:id/chat', wrap(ac.open));
 router.post('/helpers/:id/verify',  validate(helperActionSchema), wrap(c.helperAction('verify')));
 router.post('/helpers/:id/reject',  validate(helperActionSchema), wrap(c.helperAction('reject')));
 router.post('/helpers/:id/suspend', validate(helperActionSchema), wrap(c.helperAction('suspend')));

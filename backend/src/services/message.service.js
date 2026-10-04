@@ -6,7 +6,8 @@ import { pushNotifications, syncCount } from './notification.service.js';
 import { signedUrl, storeImage, deleteStored } from './upload.service.js';
 import { logger } from '../utils/logger.js';
 
-const ACTIVE = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS'];
+// ADMIN_CHAT is the pseudo-status of an admin<->helper conversation (no request): always open
+const ACTIVE = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS', 'ADMIN_CHAT'];
 
 /** True while messages can still be sent for a request with this status. */
 export const isChatOpen = (status) => ACTIVE.includes(status);
@@ -29,8 +30,9 @@ const toMessage = (m) => ({
 /** Works with the pool or a transaction client. Non-participants get the same 404 as a missing chat. */
 export async function getConversation(db, conversationId, userId) {
   const { rows } = await db.query(
-    `SELECT cv.id, cv.request_id, cv.user_id, cv.helper_user_id, r.status
-       FROM conversations cv JOIN help_requests r ON r.id = cv.request_id
+    `SELECT cv.id, cv.request_id, cv.user_id, cv.helper_user_id,
+            COALESCE(r.status::text, 'ADMIN_CHAT') AS status
+       FROM conversations cv LEFT JOIN help_requests r ON r.id = cv.request_id
       WHERE cv.id = $1 AND (cv.user_id = $2 OR cv.helper_user_id = $2)`,
     [conversationId, userId]);
   if (!rows[0]) throw notFound('CONVERSATION_NOT_FOUND', 'Conversation not found');
@@ -40,7 +42,8 @@ export async function getConversation(db, conversationId, userId) {
 export async function listConversations(userId, { requestId }) {
   // One query: last message via LATERAL, unread count via a correlated subquery (no N+1)
   const { rows } = await query(
-    `SELECT cv.id, cv.request_id, r.title, r.status,
+    `SELECT cv.id, cv.request_id, COALESCE(r.title, 'Admin support') AS title,
+            COALESCE(r.status::text, 'ADMIN_CHAT') AS status,
             ou.id AS other_id, split_part(ou.name, ' ', 1) AS other_name, ou.role AS other_role,
             lm.id AS last_id, lm.body AS last_body, lm.sender_id AS last_sender,
             (lm.attachment_url IS NOT NULL) AS last_has_attachment, lm.created_at AS last_at,
@@ -49,7 +52,7 @@ export async function listConversations(userId, { requestId }) {
                 AND NOT EXISTS (SELECT 1 FROM message_reads mr
                                  WHERE mr.message_id = m.id AND mr.reader_id = $1)) AS unread
        FROM conversations cv
-       JOIN help_requests r ON r.id = cv.request_id
+       LEFT JOIN help_requests r ON r.id = cv.request_id
        JOIN users ou ON ou.id = CASE WHEN cv.user_id = $1 THEN cv.helper_user_id ELSE cv.user_id END
        LEFT JOIN LATERAL (
          SELECT id, body, sender_id, attachment_url, created_at FROM messages
@@ -127,7 +130,9 @@ async function insertMessage(userId, { conversationId, body, clientId, attachmen
     }
 
     // At most one unread NEW_MESSAGE notification per conversation
-    const title = cv.user_id === userId ? 'New message about your job' : 'New message from your helper';
+    const title = !cv.request_id
+      ? (cv.user_id === userId ? 'New message from admin' : 'New message from your helper')
+      : (cv.user_id === userId ? 'New message about your job' : 'New message from your helper');
     const note = (await c.query(
       `INSERT INTO notifications (user_id, type, title, data)
        SELECT $1::uuid, 'NEW_MESSAGE', $2::text, $3::jsonb

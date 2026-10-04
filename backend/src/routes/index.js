@@ -4,6 +4,7 @@ import { pingRedis } from '../config/redis.js';
 import auth from './auth.routes.js';
 import admin from './admin.routes.js';
 import requests from './request.routes.js';
+import requestHelper from './request-helper.routes.js';
 import requestImages from './request-image.routes.js';
 import { requestRatingRouter, helperRatingRouter } from './rating.routes.js';
 import reports from './report.routes.js';
@@ -37,6 +38,7 @@ router.use('/notifications', notifications);
 router.use('/requests', requestImages);       // /:id/image, /:id/image-url
 router.use('/requests', requestRatingRouter); // /:id/rating
 router.use('/requests', reports);             // /:id/report
+router.use('/requests', requestHelper);       // /:id/helper
 router.use('/requests', requests);
 router.use('/helpers', helperRatingRouter);   // /:id/ratings (before `helpers`)
 router.use('/helpers', helpers);
