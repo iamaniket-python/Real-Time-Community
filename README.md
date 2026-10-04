@@ -1,15 +1,10 @@
-# 🤝 Real-Time Community Help Platform
+# 🤝 HelpNow: Real-Time Community Help Platform
 
-A production-oriented real-time platform that connects people who need
-local help with nearby available helpers.
+A real-time platform that connects people who need local help with nearby, admin-verified helpers.
 
-Built with the **PERN stack --- PostgreSQL, Express.js, React.js, and
-Node.js** --- with real-time communication using **Socket.IO** and fast
-temporary data/presence handling using **Redis**.
+Built with the **PERN stack: PostgreSQL, Express.js, React.js and Node.js**, with real-time communication using **Socket.IO** and presence/rate-limit handling using **Redis**.
 
-> 🚀 The goal is to build this as a real-world application rather than a
-> basic CRUD project, with focus on security, scalability, concurrency,
-> real-time communication, and user experience.
+> 🚀 The goal is a real-world application rather than a basic CRUD project, with focus on security, concurrency, real-time communication and user experience.
 
 ------------------------------------------------------------------------
 
@@ -17,51 +12,54 @@ temporary data/presence handling using **Redis**.
 
 ### 👤 User
 
--   Register and login
--   JWT-based authentication
--   Create help requests
--   Select help category
--   Add title, description, image, and location
--   Find nearby available helpers
--   Receive real-time notifications
--   Real-time chat with the assigned helper
--   Track request status
--   Cancel requests
--   View request history
--   Rate and review helpers
--   Report problems/users
+-   Register and login (JWT access token plus httpOnly refresh cookie)
+-   Create help requests with category, title, description, address, map location and an optional image
+-   One active request at a time
+-   Real-time status updates and notifications
+-   Live map showing the assigned helper's position
+-   See the assigned helper's details: shop name and address, years of experience, GST number, masked Aadhaar and PAN, phone, rating and shop photo
+-   Real-time chat with the helper (text and images)
+-   Cancel requests and view request history
+-   Rate the helper after completion
+-   Report problems
 
 ### 🧑‍🔧 Helper
 
 -   Register as a helper
--   Create and manage helper profile
+-   Business profile: shop name, address, years of experience, GST, Aadhaar, PAN
+-   Upload Aadhaar card, PAN card and shop photo
+-   Readiness checklist (business details, documents, services, admin verification)
 -   Select service categories
--   Online/Offline availability
+-   Online/Offline availability with live location sharing
 -   Receive nearby requests in real time
 -   Accept or reject requests
--   Chat with users
--   Update job status
--   Share location during active jobs
+-   Update job status step by step
+-   Chat with users and receive messages from admin
 -   View completed jobs
--   View ratings and reviews
 
 ### 👨‍💼 Admin
 
--   Admin dashboard
--   Manage users
--   Manage helpers
--   Verify/suspend helpers
+-   Dashboard with platform statistics
+-   Review helpers with full ID numbers and document images
+-   Verify, reject or suspend helpers
+-   Chat directly with any helper, without a request
+-   Block or unblock users
 -   Manage categories
 -   Monitor active requests
--   Manage reports and complaints
--   Manage reviews
--   View platform statistics
+-   Handle reports and complaints
+-   Audit log of every admin action
 
 ------------------------------------------------------------------------
 
 ## ⚡ Real-Time Request Flow
 
 ``` text
+Helper completes business profile and documents
+        ↓
+Admin reviews documents and verifies helper
+        ↓
+Helper goes online and shares location
+        ↓
 User creates request
         ↓
 System finds nearby available helpers
@@ -70,15 +68,13 @@ Socket.IO sends real-time notification
         ↓
 Helper accepts request
         ↓
-User receives instant notification
-        ↓
-Real-time chat starts
+User sees helper details, live map and chat
         ↓
 Helper updates job status
         ↓
 Request completed
         ↓
-User gives rating/review
+User gives rating
 ```
 
 ### Request Status
@@ -105,24 +101,32 @@ REJECTED
 EXPIRED
 ```
 
+### Helper Verification
+
+``` text
+PENDING → VERIFIED
+PENDING → REJECTED → (resubmit) → PENDING
+VERIFIED → SUSPENDED → VERIFIED
+```
+
 ------------------------------------------------------------------------
 
 ## 🛠️ Tech Stack
 
-  Technology   Purpose
-  ------------ --------------------------------
-  React.js     Frontend UI
-  Node.js      Backend runtime
-  Express.js   REST API
-  PostgreSQL   Primary database
-  Socket.IO    Real-time communication
-  Redis        Cache, presence, rate limiting
-  JWT          Authentication
-  bcrypt       Password hashing
-  PostGIS      Location-based queries
-  Docker       Containerization
-  Nginx        Reverse proxy
-  Maps API     Location and map functionality
+  Technology                 Purpose
+  -------------------------- ----------------------------------------
+  React 19 + Vite            Frontend UI
+  Tailwind CSS v4            Styling
+  React Router               Routing
+  Leaflet / react-leaflet    Maps
+  Node.js + Express.js       REST API
+  PostgreSQL (raw SQL)       Primary database
+  Socket.IO                  Real-time communication
+  Redis                      Presence, rate limiting, Socket scaling
+  JWT                        Authentication
+  Zod                        Input validation
+  Multer + file-type         Safe image uploads
+  Vercel                     Frontend hosting
 
 ------------------------------------------------------------------------
 
@@ -136,29 +140,20 @@ EXPIRED
                     REST + Socket.IO
                              │
                     ┌────────▼─────────┐
-                    │ Load Balancer /  │
-                    │      Nginx       │
-                    └────────┬─────────┘
-                             │
-               ┌─────────────┴─────────────┐
-               │                           │
-       ┌───────▼────────┐        ┌────────▼───────┐
-       │  Node/Express  │        │  Node/Express  │
-       │    Server 1    │        │    Server 2    │
-       └───────┬────────┘        └────────┬───────┘
-               │                           │
-               └─────────────┬─────────────┘
-                             │
-                 ┌───────────▼───────────┐
-                 │         Redis         │
-                 │ Cache / Presence /    │
-                 │ Rate Limiting / PubSub│
-                 └───────────┬───────────┘
-                             │
-                 ┌───────────▼───────────┐
-                 │      PostgreSQL       │
-                 │  Persistent Database  │
-                 └───────────────────────┘
+                    │  Node / Express  │
+                    │  + Socket.IO     │
+                    └───┬──────────┬───┘
+                        │          │
+              ┌─────────▼──┐   ┌───▼─────────────┐
+              │   Redis    │   │   PostgreSQL    │
+              │ Presence / │   │ Persistent data │
+              │ Rate limit │   └─────────────────┘
+              └────────────┘
+                        │
+              ┌─────────▼─────────┐
+              │ Private uploads   │
+              │ (signed URLs)     │
+              └───────────────────┘
 ```
 
 ------------------------------------------------------------------------
@@ -169,112 +164,98 @@ Main tables include:
 
 ``` text
 users
-helper_profiles
+helper_profiles          (business details, ID numbers, document paths)
 categories
 helper_categories
 help_requests
 request_status_history
+request_rejections
+conversations            (request chats and admin-helper chats)
 messages
 message_reads
 notifications
 ratings
 reports
 refresh_tokens
-admin_actions
+admin_actions            (audit log)
+schema_migrations
 ```
 
-PostgreSQL remains the **source of truth** for persistent application
-data.
+PostgreSQL is the **source of truth**. Schema changes are numbered `.sql` files in the `migrations` folder, applied in order by `db/migrate.js`.
 
 ------------------------------------------------------------------------
 
 ## 🔥 Real-Time Features
 
-Socket.IO is used for:
+Server to client:
 
 ``` text
 request:new
 request:accepted
-request:rejected
+request:unavailable
 request:status_changed
 request:cancelled
+request:radius_expanded
+incoming:sync
 
-message:send
 message:new
 message:read
-
+message:delivered
 typing:start
 typing:stop
 
+helper:location_update
 helper:online
 helper:offline
-helper:location_update
 
 notification:new
+notification:count
 ```
 
-Socket rooms can be organized as:
+Client to server: `request:join`, `request:leave`, `conversation:join`, `conversation:leave`, `helper:location_update`, `message:send`, `typing:start`, `typing:stop`.
 
-``` text
-user:{userId}
-helper:{helperId}
-request:{requestId}
-conversation:{conversationId}
-```
+Socket rooms are organised per user, request and conversation.
 
 ------------------------------------------------------------------------
 
 ## 📍 Location Matching
 
-The platform can find available helpers near a user's request based on:
+Nearby helpers are found using:
 
--   Latitude
--   Longitude
+-   Latitude and longitude (Haversine distance in SQL)
 -   Service category
--   Availability
--   Search radius
+-   Availability and a fresh location
+-   Search radius that can expand over time
 
-For production-scale geospatial queries, **PostGIS** can be used with
-PostgreSQL.
-
-Location data should only be exposed when required and should be
-protected through authentication and authorization.
+Helper locations are privacy-rounded until a job is accepted.
 
 ------------------------------------------------------------------------
 
 ## 🔐 Security
 
-The application is designed with security in mind:
-
--   JWT authentication
--   Role-based authorization
--   Password hashing with bcrypt
--   HTTP-only cookies where appropriate
--   Input validation
--   SQL injection protection
+-   JWT access token (15 minutes, kept in memory) and httpOnly refresh cookie
+-   Role-based authorization (USER, HELPER, ADMIN)
+-   Zod input validation
+-   Parameterised SQL queries
 -   Rate limiting
 -   Secure CORS configuration
--   Helmet/security headers
--   File upload validation
--   File size restrictions
--   Environment variables for secrets
--   HTTPS in production
--   Centralized error handling
--   Protection against duplicate operations
--   No frontend exposure of private secrets
+-   Image uploads checked by real file type (JPEG, PNG, WebP) and 5 MB limit
+-   Files stored outside the public folder and served only through **5-minute signed URLs**
+-   Users see only **masked** Aadhaar and PAN; full numbers and ID images are visible to admins only
+-   Every admin view of full helper details is written to the audit log
+-   Non-owners receive 404 instead of 403, so ids cannot be probed
+-   Race-safe request acceptance and idempotent request creation
+-   Environment variables for all secrets
+
+> ⚠️ Aadhaar and PAN numbers are currently stored as plain text. Encrypt them at rest before real users.
 
 ------------------------------------------------------------------------
 
 ## ⚙️ Redis Usage
 
-Redis can be used for:
-
--   Online/offline helper presence
 -   Rate limiting
--   Temporary matching information
--   Frequently accessed cache
--   Socket.IO scaling
--   Short-lived application data
+-   Presence handling
+-   Socket.IO adapter for scaling
 
 Redis is **not** the primary database.
 
@@ -283,39 +264,38 @@ Redis is **not** the primary database.
 ## 📁 Project Structure
 
 ``` text
-real-time-community-help/
+Real Time Commnunity/
 │
-├── client/
-│   └── src/
-│       ├── components/
-│       ├── pages/
-│       ├── layouts/
-│       ├── hooks/
-│       ├── services/
-│       ├── store/
-│       ├── socket/
-│       ├── routes/
-│       └── utils/
+├── frontend/
+│   └── client/
+│       └── src/
+│           ├── api/            (API wrappers)
+│           ├── components/     (ui, admin, helper)
+│           ├── context/
+│           ├── hooks/
+│           ├── pages/          (Authentication, user, helper, admin, shared)
+│           ├── routes/
+│           ├── socket/
+│           └── utils/
 │
-├── server/
-│   └── src/
-│       ├── config/
-│       ├── controllers/
-│       ├── middleware/
-│       ├── models/
-│       ├── routes/
-│       ├── services/
-│       ├── sockets/
-│       ├── validators/
-│       ├── utils/
-│       ├── jobs/
-│       ├── app.js
-│       └── server.js
+├── backend/
+│   ├── config/
+│   ├── controllers/
+│   ├── db/
+│   ├── jobs/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   ├── sockets/
+│   ├── utils/
+│   ├── validators/
+│   ├── app.js
+│   └── server.js
 │
-├── docker-compose.yml
-├── .env.example
+├── migrations/                 (numbered .sql files)
 ├── README.md
-└── package.json
+└── .gitignore
 ```
 
 ------------------------------------------------------------------------
@@ -324,21 +304,18 @@ real-time-community-help/
 
 ### Prerequisites
 
-Install:
-
--   Node.js
+-   Node.js 20 or newer
 -   npm
 -   PostgreSQL
 -   Redis
 -   Git
--   Docker (recommended)
 
 ### Clone Repository
 
 ``` bash
-git clone https://github.com/YOUR_USERNAME/real-time-community-help.git
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
 
-cd real-time-community-help
+cd YOUR_REPO
 ```
 
 ### Install Dependencies
@@ -346,14 +323,14 @@ cd real-time-community-help
 Backend:
 
 ``` bash
-cd server
+cd backend
 npm install
 ```
 
 Frontend:
 
 ``` bash
-cd ../client
+cd frontend/client
 npm install
 ```
 
@@ -361,42 +338,27 @@ npm install
 
 ## 🔑 Environment Variables
 
-Create `.env` files based on `.env.example`.
+Backend: create `backend/.env`. The full list of names is defined in `backend/config/env.js`. It includes the database URL, Redis URL, JWT secrets, `UPLOAD_SECRET`, the client origin and the request search settings.
 
-Example:
+Frontend: create `frontend/client/.env`:
 
 ``` env
-PORT=5000
-
-DATABASE_URL=postgresql://username:password@localhost:5432/community_help
-
-JWT_SECRET=your_jwt_secret
-JWT_REFRESH_SECRET=your_refresh_secret
-
-REDIS_URL=redis://localhost:6379
-
-CLIENT_URL=http://localhost:5173
-
-MAP_API_KEY=your_map_api_key
+VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
 ```
 
-> Never commit real secrets to GitHub.
+> Never commit real secrets or the `uploads` folder to GitHub.
 
 ------------------------------------------------------------------------
 
-## 🐳 Run With Docker
-
-If Docker configuration is available:
+## 🗃️ Database Migrations
 
 ``` bash
-docker compose up --build
+cd backend
+node db/migrate.js
 ```
 
-Stop containers:
-
-``` bash
-docker compose down
-```
+Migrations are read from the `migrations` folder one level above `backend` and applied in filename order.
 
 ------------------------------------------------------------------------
 
@@ -405,18 +367,18 @@ docker compose down
 Backend:
 
 ``` bash
-cd server
+cd backend
 npm run dev
 ```
 
 Frontend:
 
 ``` bash
-cd client
+cd frontend/client
 npm run dev
 ```
 
-Example local URLs:
+Local URLs:
 
 ``` text
 Frontend: http://localhost:5173
@@ -424,9 +386,13 @@ Backend:  http://localhost:5000
 Health:   http://localhost:5000/api/health
 ```
 
+> The backend CORS setting must allow exactly `http://localhost:5173`. Use two browser sessions (normal and incognito) to test two accounts, because the refresh cookie is shared inside one browser.
+
 ------------------------------------------------------------------------
 
-## 🔌 Example API Endpoints
+## 🔌 API Endpoints
+
+Base path `/api`. Success: `{ success: true, data }`. Error: `{ success: false, message, errorCode, details? }`.
 
 ### Authentication
 
@@ -435,220 +401,197 @@ POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh
 POST /api/auth/logout
+GET  /api/auth/me
 ```
 
 ### Help Requests
 
 ``` http
-POST   /api/requests
-GET    /api/requests
-GET    /api/requests/:id
-PATCH  /api/requests/:id/status
-POST   /api/requests/:id/accept
-POST   /api/requests/:id/cancel
+POST  /api/requests
+GET   /api/requests
+GET   /api/requests/:id
+POST  /api/requests/:id/cancel
+GET   /api/requests/:id/helper
+POST  /api/requests/:id/accept
+POST  /api/requests/:id/reject
+PATCH /api/requests/:id/status
+POST  /api/requests/:id/rating
+POST  /api/requests/:id/report
 ```
 
-### Helpers
+### Helper Profile
 
 ``` http
-GET   /api/helpers/nearby
+GET   /api/helpers/me
+GET   /api/helpers/me/business
+PUT   /api/helpers/me/business
+GET   /api/helpers/me/documents
+POST  /api/helpers/me/documents/:type     (aadhaar | pan | shop)
+PUT   /api/helpers/categories
 PATCH /api/helpers/availability
+GET   /api/helpers/incoming
+GET   /api/helpers/jobs
 ```
 
 ### Messages
 
 ``` http
+GET  /api/conversations
 GET  /api/messages/:conversationId
 POST /api/messages
+POST /api/messages/:conversationId/attachments
+POST /api/messages/:conversationId/read
 ```
 
 ### Notifications
 
 ``` http
 GET   /api/notifications
+GET   /api/notifications/unread-count
 PATCH /api/notifications/:id/read
+PATCH /api/notifications/read-all
 ```
 
-### Ratings
+### Admin
 
 ``` http
-POST /api/ratings
-```
-
-### Reports
-
-``` http
-POST /api/reports
+GET   /api/admin/helpers
+GET   /api/admin/helpers/:id
+POST  /api/admin/helpers/:id/verify
+POST  /api/admin/helpers/:id/reject
+POST  /api/admin/helpers/:id/suspend
+POST  /api/admin/helpers/:id/chat
+POST  /api/admin/users/:id/block
+POST  /api/admin/users/:id/unblock
+GET   /api/admin/reports
+PATCH /api/admin/reports/:id
+GET   /api/admin/categories
+POST  /api/admin/categories
+PATCH /api/admin/categories/:id
+GET   /api/admin/requests/active
+GET   /api/admin/stats
+GET   /api/admin/audit-log
 ```
 
 ------------------------------------------------------------------------
 
 ## 🧠 Concurrency Handling
 
-One of the important technical challenges is preventing two helpers from
-accepting the same request.
-
-Example:
+Two helpers must never be able to accept the same request.
 
 ``` text
 Helper A ─────┐
               │
               ▼
         PostgreSQL
-        Transaction
+   UPDATE ... WHERE status = 'SEARCHING'
+   AND accepted_helper_id IS NULL
               │
-       Lock request row
+       Only one caller matches
               │
-       Check status
-              │
-       Assign Helper A
-              │
-            COMMIT
+       Assign Helper A, COMMIT
 
 Helper B
    ↓
-Checks request
+Same UPDATE matches no row
    ↓
-Already ACCEPTED
-   ↓
-Reject acceptance
+409 REQUEST_NOT_AVAILABLE
 ```
 
-This prevents inconsistent assignments when multiple helpers try to
-accept the same request simultaneously.
+Database constraints also enforce one active request per user and one active job per helper.
 
 ------------------------------------------------------------------------
 
-## 📊 Production Readiness
+## 🌐 Deployment
 
-Before production deployment, the application should be audited for:
+**Frontend (Vercel)**
+
+-   Root Directory: `frontend/client`
+-   Environment variables: `VITE_API_URL` and `VITE_SOCKET_URL` pointing at the deployed backend (redeploy after changes)
+-   Add `frontend/client/vercel.json` so refreshing on routes like `/admin` works:
+
+``` json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
+```
+
+**Backend**
+
+-   Host it separately from Vercel (it is a long-lived Socket.IO server)
+-   Run all migrations on the production database
+-   CORS must allow the Vercel URL; the refresh cookie needs `Secure` and `SameSite=None` over HTTPS
+-   Persist the `uploads` folder (volume or object storage)
+
+------------------------------------------------------------------------
+
+## 📊 Production Readiness Checklist
 
 ### Security
 
--   Authentication
--   Authorization
--   Secrets management
--   HTTPS
--   Rate limiting
--   Input validation
--   File security
+-   [ ] Encrypt Aadhaar and PAN at rest
+-   [ ] Legal review for storing and showing identity data
+-   [ ] Confirm `.env` and `uploads` are in `.gitignore`
+-   [ ] HTTPS and production CORS/cookie settings
 
 ### Performance
 
--   PostgreSQL indexes
--   Query optimization
--   Pagination
--   Redis caching
--   Image compression
--   Lazy loading
--   API performance
+-   [ ] Code splitting (the frontend bundle is about 550 kB)
+-   [ ] Database indexes reviewed for the busiest queries
 
-### SEO
+### UX
 
--   Page titles
--   Meta descriptions
--   Open Graph metadata
--   Favicon
--   Sitemap
--   robots.txt
--   Canonical URLs
--   Image alt text
-
-### UX & Accessibility
-
--   Mobile responsiveness
--   Loading states
--   Empty states
--   Error states
--   Custom 404 page
--   Form validation
--   Accessible forms
--   Keyboard navigation
--   Color contrast
+-   [x] Mobile-friendly layouts
+-   [x] Loading, empty and error states
+-   [x] Custom error page
+-   [ ] SEO metadata and accessibility audit
 
 ### Monitoring
 
--   Error logging
--   API monitoring
--   Database monitoring
--   Redis health
--   Server health
--   Socket connection monitoring
+-   [ ] Error logging and API monitoring
+-   [ ] Database and Redis health checks
 
 ------------------------------------------------------------------------
 
 ## 🧪 Testing
 
-Recommended test coverage:
+Manual end-to-end flow (use two browser sessions):
 
 ``` text
-Authentication
-Authorization
-Help request creation
-Helper matching
-Concurrent request acceptance
-Request status transitions
-Real-time chat
-Notifications
-Ratings
-Admin operations
+1. Helper fills profile and uploads documents
+2. Admin reviews and verifies the helper
+3. Helper picks services and goes online
+4. User creates a request
+5. Helper accepts; user sees helper card, map and chat
+6. Helper advances status; user follows live
+7. User rates and reports
+8. Admin handles the report and chats with the helper
 ```
 
-For the concurrency scenario, test multiple simultaneous acceptance
-requests and verify that only one helper can successfully claim the
-request.
+Concurrent acceptance should be tested by sending several accept calls at once and checking that only one succeeds.
 
 ------------------------------------------------------------------------
 
 ## 📈 Future Improvements
 
-Possible future features:
-
+-   Admin inbox for all helper conversations
 -   Push notifications
--   Advanced helper matching algorithm
 -   Payment integration
 -   Background job queues
--   AI-based request categorization
--   Fraud/abuse detection
+-   Fraud and abuse detection
 -   Advanced analytics
 -   Multi-language support
--   Service provider verification
--   Customer support system
+-   Docker and Nginx setup
+-   PostGIS for large-scale geospatial queries
 -   Dedicated mobile application
--   Horizontal scaling for high traffic
-
-------------------------------------------------------------------------
-
-## 🎯 Learning & Interview Value
-
-This project demonstrates practical knowledge of:
-
--   Full-stack development
--   REST API design
--   PostgreSQL database design
--   Authentication and authorization
--   Real-time systems
--   Socket.IO
--   Redis
--   Concurrency and race conditions
--   Geospatial queries
--   Caching
--   API security
--   Scalable architecture
--   Docker
--   Production deployment
--   Error handling
--   Testing
 
 ------------------------------------------------------------------------
 
 ## 📌 Project Status
 
-🚧 **Currently under development**
+✅ **All planned features are built.**
 
-The architecture is designed with production scalability and real-time
-functionality in mind. Features should be marked as complete only after
-implementation and testing.
+The core flow (requests, matching, chat, ratings, admin tools) has been tested. The newest features (helper business profile, assigned-helper card, admin-to-helper chat) still need a full end-to-end test before production use.
 
 ------------------------------------------------------------------------
 
