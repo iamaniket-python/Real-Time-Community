@@ -15,8 +15,10 @@ import Probe from './pages/user/Probe';
 import ProbeNotif from './pages/user/ProbeNotif';
 import HelperDashboard from './pages/helper/HelperDashboard';
 import HelperJobs from './pages/helper/HelperJobs';
+import HelperProfile from './pages/helper/HelperProfile';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHelpers from './pages/admin/AdminHelpers';
+import AdminHelperDetail from './pages/admin/AdminHelperDetail';
 import AdminReports from './pages/admin/AdminReports';
 import AdminCategories from './pages/admin/AdminCategories';
 import AdminStats from './pages/admin/AdminStats';
@@ -44,6 +46,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/helper" element={<HelperDashboard />} />
           <Route path="/helper/jobs" element={<HelperJobs />} />
+          <Route path="/helper/profile" element={<HelperProfile />} />
         </Route>
       </Route>
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
@@ -51,6 +54,7 @@ export default function App() {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/helpers" element={<AdminHelpers />} />
+            <Route path="/admin/helpers/:id" element={<AdminHelperDetail />} />
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/categories" element={<AdminCategories />} />
             <Route path="/admin/stats" element={<AdminStats />} />

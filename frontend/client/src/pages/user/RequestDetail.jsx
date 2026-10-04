@@ -10,10 +10,12 @@ import RequestImage from '../../components/RequestImage';
 import RatingForm from '../../components/RatingForm';
 import ReportForm from '../../components/ReportForm';
 import HelperTracker from '../../components/HelperTracker';
+import AssignedHelper from '../../components/AssignedHelper';
 
 const CANCELLABLE = ['PENDING', 'SEARCHING', 'ACCEPTED', 'ARRIVING'];
 const CHAT_OPEN = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS'];
 const REPORTABLE = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'];
+const HELPER_SHOWN = ['ACCEPTED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'];
 
 export default function RequestDetail() {
   const { id } = useParams();
@@ -55,35 +57,40 @@ export default function RequestDetail() {
 
   return (
     <PageShell title={req?.title || 'Request'} subtitle={req?.address} action={back} narrow>
-      <Card>
-        {error && <p className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-        {!req && !error && <p className="py-8 text-center text-slate-400">Loading…</p>}
-        {req && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <StatusBadge status={req.status} />
-              <span className="text-xs text-slate-500">
-                {new Date(req.createdAt || req.created_at).toLocaleString()}
-              </span>
+      <div className="space-y-5">
+        <Card>
+          {error && <p className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+          {!req && !error && <p className="py-8 text-center text-slate-400">Loading…</p>}
+          {req && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <StatusBadge status={req.status} />
+                <span className="text-xs text-slate-500">
+                  {new Date(req.createdAt || req.created_at).toLocaleString()}
+                </span>
+              </div>
+              <p className="whitespace-pre-wrap text-slate-700">{req.description}</p>
+              <RequestImage requestId={req.id} />
+              {CHAT_OPEN.includes(req.status) && <HelperTracker request={req} helperPos={helperPos} />}
+              {CHAT_OPEN.includes(req.status) && (
+                <Link to={`/chat/${req.id}`} className="block">
+                  <Button className="w-full">💬 Open chat with your helper</Button>
+                </Link>
+              )}
+              {req.status === 'COMPLETED' && <RatingForm requestId={req.id} />}
+              {CANCELLABLE.includes(req.status) && (
+                <Button variant="danger" loading={busy} onClick={cancel} className="w-full">
+                  Cancel request
+                </Button>
+              )}
+              {REPORTABLE.includes(req.status) && <ReportForm requestId={req.id} />}
             </div>
-            <p className="whitespace-pre-wrap text-slate-700">{req.description}</p>
-            <RequestImage requestId={req.id} />
-            {CHAT_OPEN.includes(req.status) && <HelperTracker request={req} helperPos={helperPos} />}
-            {CHAT_OPEN.includes(req.status) && (
-              <Link to={`/chat/${req.id}`} className="block">
-                <Button className="w-full">Open chat with your helper</Button>
-              </Link>
-            )}
-            {req.status === 'COMPLETED' && <RatingForm requestId={req.id} />}
-            {CANCELLABLE.includes(req.status) && (
-              <Button variant="danger" loading={busy} onClick={cancel} className="w-full">
-                Cancel request
-              </Button>
-            )}
-            {REPORTABLE.includes(req.status) && <ReportForm requestId={req.id} />}
-          </div>
+          )}
+        </Card>
+        {req && HELPER_SHOWN.includes(req.status) && (
+          <AssignedHelper requestId={req.id} status={req.status} />
         )}
-      </Card>
+      </div>
     </PageShell>
   );
 }

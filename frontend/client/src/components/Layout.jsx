@@ -11,6 +11,7 @@ const LINKS = {
   HELPER: [
     ['/helper', 'Dashboard'],
     ['/helper/jobs', 'My jobs'],
+    ['/helper/profile', 'Profile'],
   ],
 };
 

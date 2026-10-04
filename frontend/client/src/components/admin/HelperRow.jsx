@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import StatusBadge from '../ui/StatusBadge';
 
@@ -18,7 +19,7 @@ export default function HelperRow({ h, tab, actions, busy, onAsk }) {
           <p className="truncate font-semibold text-slate-800">{name}</p>
           {email && <p className="truncate text-xs text-slate-500">{email}</p>}
         </div>
-        <StatusBadge status={h.status || tab} />
+        <StatusBadge status={h.status || h.verificationStatus || tab} />
       </div>
       {cats.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -29,7 +30,13 @@ export default function HelperRow({ h, tab, actions, busy, onAsk }) {
           ))}
         </div>
       )}
-      <div className="mt-4 grid auto-cols-fr grid-flow-col gap-2 sm:flex sm:justify-end">
+      <Link
+        to={`/admin/helpers/${h.id}`}
+        className="mt-4 block rounded-xl bg-white px-4 py-2 text-center text-sm font-semibold text-indigo-700 ring-1 ring-indigo-100 transition hover:bg-indigo-50"
+      >
+        View details and documents
+      </Link>
+      <div className="mt-2 grid auto-cols-fr grid-flow-col gap-2 sm:flex sm:justify-end">
         {actions.map(([a, label, v]) => (
           <Button key={a} variant={v} loading={busy} onClick={() => onAsk(h, a, label, v)} className="w-full sm:w-auto">
             {label}

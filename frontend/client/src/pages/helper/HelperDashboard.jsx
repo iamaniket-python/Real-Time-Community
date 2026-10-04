@@ -8,6 +8,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import HelperCategories from '../../components/HelperCategories';
 import IncomingList from '../../components/IncomingList';
 import ActiveJobCard from '../../components/ActiveJobCard';
+import ProfileChecklist from '../../components/helper/ProfileChecklist';
 
 const getPos = () =>
   new Promise((res) =>
@@ -42,6 +43,9 @@ export default function HelperDashboard() {
 
   const online = !!(p?.isAvailable ?? p?.is_available);
   const status = p?.verification || p?.verificationStatus || p?.status;
+  const verified = status === 'VERIFIED';
+  const ready = verified && p?.businessComplete !== false && p?.documentsComplete !== false
+    && (p?.categories || []).length > 0;
   useShareLocation(online);
 
   async function toggle() {
@@ -62,6 +66,13 @@ export default function HelperDashboard() {
   }
 
   const selected = (p?.categories || []).map((c) => c.id ?? c);
+  const hint = !verified
+    ? 'An admin must verify you before you can go online.'
+    : !ready
+      ? 'Finish the checklist below to go online.'
+      : online
+        ? 'You are online and sharing your location.'
+        : 'You are offline.';
 
   return (
     <PageShell title="Helper dashboard" subtitle="Go online to receive nearby requests.">
@@ -77,23 +88,12 @@ export default function HelperDashboard() {
                   <span className="text-sm text-slate-500">Verification</span>
                   <StatusBadge status={status} />
                 </div>
-                <p className="text-sm text-slate-600">
-                  {status !== 'VERIFIED'
-                    ? 'An admin must verify you before you can go online.'
-                    : online
-                      ? 'You are online and sharing your location.'
-                      : 'You are offline.'}
-                </p>
-                {!status && (
-                  <p className="text-xs text-amber-600">
-                    Status field not found. Response keys: {Object.keys(p).join(', ')}
-                  </p>
-                )}
+                <p className="text-sm text-slate-600">{hint}</p>
               </div>
               <Button
                 variant={online ? 'danger' : 'primary'}
                 loading={busy}
-                disabled={status !== 'VERIFIED'}
+                disabled={!online && !ready}
                 onClick={toggle}
                 className="w-full sm:w-auto"
               >
@@ -102,6 +102,7 @@ export default function HelperDashboard() {
             </div>
           )}
         </Card>
+        {p && <ProfileChecklist profile={p} verified={verified} />}
         {p && <IncomingList />}
         {p && <HelperCategories selected={selected} onSaved={load} />}
       </div>
