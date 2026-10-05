@@ -39,6 +39,7 @@ router.post('/refresh', authLimiter, wrap(c.refresh));
 router.post('/logout', wrap(c.logout));
 router.get('/me', authenticate, wrap(c.me));
 router.delete('/account',
-  authenticate, authorize('USER', 'HELPER'), deleteLimiter, validate(deleteAccountSchema), wrap(account.remove));
+  authenticate, authorize('USER', 'HELPER', 'SELLER'), deleteLimiter,
+  validate(deleteAccountSchema), wrap(account.remove));
 
 export default router;
