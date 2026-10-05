@@ -10,6 +10,7 @@ import { requestRatingRouter, helperRatingRouter } from './rating.routes.js';
 import reports from './report.routes.js';
 import categories from './category.routes.js';
 import helpers from './helper.routes.js';
+import sellers from './seller.routes.js';
 import messages, { conversationRouter } from './message.routes.js';
 import uploads from './upload.routes.js';
 import * as notificationModule from './notification.routes.js';
@@ -42,6 +43,7 @@ router.use('/requests', requestHelper);       // /:id/helper
 router.use('/requests', requests);
 router.use('/helpers', helperRatingRouter);   // /:id/ratings (before `helpers`)
 router.use('/helpers', helpers);
+router.use('/sellers', sellers);
 router.use('/messages', messages);
 router.use('/conversations', conversationRouter);
 router.use('/uploads', uploads); // signed URLs, no Bearer token
