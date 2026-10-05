@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import * as p from '../controllers/product.controller.js';
 import * as c from '../controllers/shop.controller.js';
+import * as r from '../controllers/review.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { makeLimiter } from '../middleware/rateLimit.js';
 import { shopProductsSchema } from '../validators/product.validator.js';
 import { nearbyShopsSchema, shopIdSchema } from '../validators/shop.validator.js';
+import { listReviewsSchema } from '../validators/review.validator.js';
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -25,5 +27,6 @@ router.use(authenticate, authorize('USER', 'ADMIN'));
 router.get('/nearby', nearbyLimiter, validate(nearbyShopsSchema), wrap(c.nearby));
 router.get('/:id', validate(shopIdSchema), wrap(c.one));
 router.get('/:id/products', validate(shopProductsSchema), wrap(p.shopProducts));
+router.get('/:id/reviews', validate(listReviewsSchema), wrap(r.list));
 
 export default router;
