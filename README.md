@@ -572,20 +572,7 @@ Concurrent acceptance should be tested by sending several accept calls at once a
 
 ------------------------------------------------------------------------
 
-## 📈 Future Improvements
 
--   Admin inbox for all helper conversations
--   Push notifications
--   Payment integration
--   Background job queues
--   Fraud and abuse detection
--   Advanced analytics
--   Multi-language support
--   Docker and Nginx setup
--   PostGIS for large-scale geospatial queries
--   Dedicated mobile application
-
-------------------------------------------------------------------------
 
 ## 📌 Project Status
 
