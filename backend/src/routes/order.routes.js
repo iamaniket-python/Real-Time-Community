@@ -1,17 +1,28 @@
 import { Router } from 'express';
 import * as c from '../controllers/checkout.controller.js';
 import * as o from '../controllers/order.controller.js';
+import * as r from '../controllers/review.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { makeLimiter } from '../middleware/rateLimit.js';
 import { checkoutSchema, orderIdSchema, verifyPaymentSchema } from '../validators/checkout.validator.js';
 import { listOrdersSchema } from '../validators/order.validator.js';
+import { reviewSchema } from '../validators/review.validator.js';
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
 // 10 checkouts per minute per user
 const checkoutLimiter = makeLimiter({
   prefix: 'checkout',
+  windowMs: 60 * 1000,
+  limit: 10,
+  keyGenerator: (req) => req.user.id,
+  message: { success: false, message: 'Too many attempts, slow down', errorCode: 'RATE_LIMITED' },
+});
+
+// 10 review attempts per minute per user
+const reviewLimiter = makeLimiter({
+  prefix: 'review',
   windowMs: 60 * 1000,
   limit: 10,
   keyGenerator: (req) => req.user.id,
@@ -27,5 +38,6 @@ router.post('/checkout', checkoutLimiter, validate(checkoutSchema), wrap(c.check
 router.get('/:id', validate(orderIdSchema), wrap(o.detail));
 router.get('/:id/payment', validate(orderIdSchema), wrap(c.payment));
 router.post('/:id/verify', checkoutLimiter, validate(verifyPaymentSchema), wrap(c.verify));
+router.post('/:id/review', reviewLimiter, validate(reviewSchema), wrap(r.create));
 
 export default router;
