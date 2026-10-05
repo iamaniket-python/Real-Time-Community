@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import * as c from '../controllers/seller.controller.js';
+import * as p from '../controllers/product.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { uploadImage } from '../middleware/upload.js';
 import { sellerProfileSchema, sellerOpenSchema } from '../validators/seller.validator.js';
+import {
+  createProductSchema, updateProductSchema, productIdSchema, listProductsSchema,
+} from '../validators/product.validator.js';
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -25,5 +29,12 @@ router.post('/me/documents/:type', uploadLimiter, uploadImage, wrap(c.uploadDoc)
 router.get('/me/gallery', wrap(c.gallery));
 router.post('/me/gallery', uploadLimiter, uploadImage, wrap(c.addImage));
 router.delete('/me/gallery/:imageId', wrap(c.removeImage));
+
+router.get('/me/products', validate(listProductsSchema), wrap(p.listMine));
+router.post('/me/products', validate(createProductSchema), wrap(p.create));
+router.patch('/me/products/:id', validate(updateProductSchema), wrap(p.update));
+router.delete('/me/products/:id', validate(productIdSchema), wrap(p.remove));
+router.post('/me/products/:id/image',
+  validate(productIdSchema), uploadLimiter, uploadImage, wrap(p.setImage));
 
 export default router;
