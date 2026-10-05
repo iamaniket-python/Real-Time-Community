@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import * as c from '../controllers/checkout.controller.js';
+import * as o from '../controllers/order.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { makeLimiter } from '../middleware/rateLimit.js';
 import { checkoutSchema, orderIdSchema, verifyPaymentSchema } from '../validators/checkout.validator.js';
+import { listOrdersSchema } from '../validators/order.validator.js';
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -20,7 +22,9 @@ const checkoutLimiter = makeLimiter({
 const router = Router();
 router.use(authenticate, authorize('USER'));
 
+router.get('/', validate(listOrdersSchema), wrap(o.list));
 router.post('/checkout', checkoutLimiter, validate(checkoutSchema), wrap(c.checkout));
+router.get('/:id', validate(orderIdSchema), wrap(o.detail));
 router.get('/:id/payment', validate(orderIdSchema), wrap(c.payment));
 router.post('/:id/verify', checkoutLimiter, validate(verifyPaymentSchema), wrap(c.verify));
 
