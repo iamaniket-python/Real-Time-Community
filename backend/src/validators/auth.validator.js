@@ -18,8 +18,8 @@ export const registerSchema = z.object({
         .regex(/^\+?[0-9]{7,15}$/, 'Invalid phone number')
         .optional(),
       password,
-      // ADMIN can never be self-registered
-      role: z.enum(['USER', 'HELPER']).default('USER'),
+      // ADMIN can never be self-registered. A SELLER starts unverified.
+      role: z.enum(['USER', 'HELPER', 'SELLER']).default('USER'),
     })
     .strict(), // rejects unknown fields
 });

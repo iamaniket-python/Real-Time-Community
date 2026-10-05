@@ -47,9 +47,12 @@ export async function register({ name, email, phone, password, role }, userAgent
     );
     const user = rows[0];
 
-    // Helpers get an (unverified) profile immediately
+    // Helpers and sellers get an (unverified) profile immediately
     if (role === 'HELPER') {
       await c.query('INSERT INTO helper_profiles (user_id) VALUES ($1)', [user.id]);
+    }
+    if (role === 'SELLER') {
+      await c.query('INSERT INTO seller_profiles (user_id) VALUES ($1)', [user.id]);
     }
     return { user: publicUser(user), ...(await issueTokens(c, user, userAgent)) };
   });
