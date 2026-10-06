@@ -14,6 +14,7 @@ import ErrorPage from './pages/shared/ErrorPage';
 import CreateRequestPage from './pages/user/CreateRequestPage';
 import MyRequests from './pages/user/MyRequests';
 import RequestDetail from './pages/user/RequestDetail';
+import NearbyShops from './pages/user/NearbyShops';
 import Probe from './pages/user/Probe';
 import ProbeNotif from './pages/user/ProbeNotif';
 import HelperDashboard from './pages/helper/HelperDashboard';
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/requests/new" element={<CreateRequestPage />} />
           <Route path="/requests" element={<MyRequests />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
+          <Route path="/shops" element={<NearbyShops />} />
           <Route path="/user/probe" element={<Probe />} />
           <Route path="/user/probe-notif" element={<ProbeNotif />} />
         </Route>

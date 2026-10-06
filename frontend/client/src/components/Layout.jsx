@@ -7,6 +7,7 @@ const LINKS = {
   USER: [
     ['/requests/new', 'Ask for help'],
     ['/requests', 'My requests'],
+    ['/shops', 'Nearby shops'],
   ],
   HELPER: [
     ['/helper', 'Dashboard'],
