@@ -2,6 +2,7 @@
 import ProtectedRoute from './routes/ProtectedRoute';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
+import SellerLayout from './components/seller/SellerLayout';
 import LoginPage from './pages/Authentication/Loginpage';
 import RegisterPage from './pages/Authentication/RegisterPage';
 import LandingPage from './pages/shared/LandingPage';
@@ -21,6 +22,7 @@ import HelperProfile from './pages/helper/HelperProfile';
 import SellerLoginPage from './pages/seller/SellerLoginPage';
 import SellerRegisterPage from './pages/seller/SellerRegisterPage';
 import SellerDashboard from './pages/seller/SellerDashboard';
+import SellerProfile from './pages/seller/SellerProfile';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHelpers from './pages/admin/AdminHelpers';
 import AdminHelperDetail from './pages/admin/AdminHelperDetail';
@@ -57,7 +59,10 @@ export default function App() {
         </Route>
       </Route>
       <Route element={<ProtectedRoute roles={['SELLER']} loginPath="/seller/login" />}>
-        <Route path="/seller" element={<SellerDashboard />} />
+        <Route element={<SellerLayout />}>
+          <Route path="/seller" element={<SellerDashboard />} />
+          <Route path="/seller/profile" element={<SellerProfile />} />
+        </Route>
       </Route>
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<Layout />}>
