@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
 import LoginPage from './pages/Authentication/Loginpage';
 import RegisterPage from './pages/Authentication/RegisterPage';
+import LandingPage from './pages/shared/LandingPage';
 import HomePage from './pages/shared/HomePage';
 import NotificationsPage from './pages/shared/NotificationsPage';
 import ChatPage from './pages/shared/ChatPage';
@@ -28,7 +29,7 @@ import AdminAudit from './pages/admin/AdminAudit';
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/error/:code" element={<ErrorPage />} />
