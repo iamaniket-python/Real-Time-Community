@@ -10,9 +10,23 @@ import { normalizeSeller } from './sellerShape';
 const NOTE = {
   PENDING: 'Your shop is waiting for verification. Complete your shop profile and documents, then an admin will review it.',
   VERIFIED: 'Your shop is verified. Customers nearby can find it while it is open.',
-  REJECTED: 'Verification was rejected. Please review your shop details and documents.',
+  REJECTED: 'Verification was rejected. Please review your shop details and documents, then save or upload again to resubmit.',
   SUSPENDED: 'Your shop is suspended and is not visible to customers.',
 };
+
+function Item({ done, text, to, optional }) {
+  return (
+    <li className="flex items-center justify-between gap-3">
+      <span className="text-slate-700">
+        {done ? '✅' : '⬜'} {text}
+        {optional && <span className="text-slate-400"> (optional)</span>}
+      </span>
+      <Link to={to} className="shrink-0 font-semibold text-indigo-600 hover:underline">
+        {done ? 'Edit' : 'Complete'}
+      </Link>
+    </li>
+  );
+}
 
 export default function SellerDashboard() {
   const [seller, setSeller] = useState(null);
@@ -39,8 +53,6 @@ export default function SellerDashboard() {
       setBusy(false);
     }
   };
-
-  const profileDone = !!(seller?.shopName && seller?.address && seller?.lat != null && seller?.lng != null);
 
   return (
     <PageShell title="Seller dashboard" subtitle="Your shop at a glance.">
@@ -82,15 +94,9 @@ export default function SellerDashboard() {
 
             <Card title="Setup checklist">
               <ul className="space-y-3 text-sm">
-                <li className="flex items-center justify-between gap-3">
-                  <span className="text-slate-700">
-                    {profileDone ? '✅' : '⬜'} Shop profile, address and location
-                  </span>
-                  <Link to="/seller/profile" className="font-semibold text-indigo-600 hover:underline">
-                    {profileDone ? 'Edit' : 'Complete'}
-                  </Link>
-                </li>
-                <li className="text-slate-400">⬜ Documents and gallery (next step)</li>
+                <Item done={seller.profileComplete} text="Shop profile, location and identity numbers" to="/seller/profile" />
+                <Item done={seller.documentsComplete} text="GST, PAN and Aadhaar document images" to="/seller/documents" />
+                <Item done={seller.galleryCount > 0} text={`Shop photos (${seller.galleryCount}/10)`} to="/seller/documents" optional />
                 <li className="text-slate-400">⬜ Products (coming soon)</li>
               </ul>
             </Card>
