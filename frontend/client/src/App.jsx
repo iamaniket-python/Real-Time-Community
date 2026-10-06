@@ -1,4 +1,4 @@
-﻿import { Navigate, Route, Routes } from 'react-router-dom';
+﻿import { Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './routes/ProtectedRoute';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
@@ -18,6 +18,9 @@ import ProbeNotif from './pages/user/ProbeNotif';
 import HelperDashboard from './pages/helper/HelperDashboard';
 import HelperJobs from './pages/helper/HelperJobs';
 import HelperProfile from './pages/helper/HelperProfile';
+import SellerLoginPage from './pages/seller/SellerLoginPage';
+import SellerRegisterPage from './pages/seller/SellerRegisterPage';
+import SellerDashboard from './pages/seller/SellerDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHelpers from './pages/admin/AdminHelpers';
 import AdminHelperDetail from './pages/admin/AdminHelperDetail';
@@ -32,6 +35,8 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/seller/login" element={<SellerLoginPage />} />
+      <Route path="/seller/register" element={<SellerRegisterPage />} />
       <Route path="/error/:code" element={<ErrorPage />} />
       <Route element={<ProtectedRoute roles={['USER']} />}>
         <Route element={<Layout />}>
@@ -50,6 +55,9 @@ export default function App() {
           <Route path="/helper/jobs" element={<HelperJobs />} />
           <Route path="/helper/profile" element={<HelperProfile />} />
         </Route>
+      </Route>
+      <Route element={<ProtectedRoute roles={['SELLER']} loginPath="/seller/login" />}>
+        <Route path="/seller" element={<SellerDashboard />} />
       </Route>
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<Layout />}>

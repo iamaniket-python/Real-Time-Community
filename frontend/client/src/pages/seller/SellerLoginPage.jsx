@@ -6,7 +6,7 @@ import AuthLayout from '../../components/AuthLayout';
 
 const input = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100';
 
-export default function LoginPage() {
+export default function SellerLoginPage() {
   const { user, login } = useAuth();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
@@ -16,7 +16,8 @@ export default function LoginPage() {
 
   if (user) {
     const from = location.state?.from?.pathname;
-    return <Navigate to={from || roleHome(user.role)} replace />;
+    const dest = user.role === 'SELLER' && from?.startsWith('/seller') ? from : roleHome(user.role);
+    return <Navigate to={dest} replace />;
   }
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -35,10 +36,10 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Log in to request or offer help.">
+    <AuthLayout title="Seller login" subtitle="Manage your shop, products and orders.">
       <form onSubmit={submit} className="space-y-5">
         <label className="block text-sm font-medium text-slate-700">Email
-          <input className={`${input} mt-1.5`} type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={set('email')} required />
+          <input className={`${input} mt-1.5`} type="email" autoComplete="email" placeholder="shop@example.com" value={form.email} onChange={set('email')} required />
         </label>
         <label className="block text-sm font-medium text-slate-700">Password
           <div className="relative mt-1.5">
@@ -49,11 +50,11 @@ export default function LoginPage() {
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 font-semibold text-white shadow-lg shadow-indigo-200 transition hover:brightness-110 disabled:opacity-60">
           {busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-          {busy ? 'Logging in...' : 'Login'}
+          {busy ? 'Logging in...' : 'Login as seller'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-600">Account nahi hai? <Link to="/register" className="font-semibold text-indigo-600 hover:underline">Register</Link></p>
-      <p className="mt-2 text-center text-xs text-slate-500">Selling something? <Link to="/seller/login" className="font-semibold text-indigo-600 hover:underline">Seller login</Link></p>
+      <p className="mt-6 text-center text-sm text-slate-600">New seller? <Link to="/seller/register" className="font-semibold text-indigo-600 hover:underline">Register your shop</Link></p>
+      <p className="mt-2 text-center text-xs text-slate-500">Looking for help instead? <Link to="/login" className="font-semibold text-indigo-600 hover:underline">Customer login</Link></p>
     </AuthLayout>
   );
 }
