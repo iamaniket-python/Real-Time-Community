@@ -1,29 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import ProductForm from '../../components/ProductForm';
 import { assetUrl } from './sellerShape';
-import { formatPaise } from '../../utils/money';
 
-const PAGE = 20;
 const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 5 * 1024 * 1024;
+const EMPTY = { name: '', description: '', price: '', stock: '' };
+const rupees = (paise) => `₹${(paise / 100).toFixed(2)}`;
 
 export default function SellerProducts() {
   const [verified, setVerified] = useState(null);
   const [items, setItems] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [more, setMore] = useState(false);
-  const [editing, setEditing] = useState(null); // null | 'new' | a product id
-  const [busyId, setBusyId] = useState('');
+  const [moreBusy, setMoreBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [form, setForm] = useState(EMPTY);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState('');
+
+  const fetchPage = useCallback(async (cursor) => {
+    const qs = `limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    return api(`/sellers/me/products?${qs}`);
+  }, []);
 
   useEffect(() => {
-    Promise.all([api('/sellers/me'), api(`/sellers/me/products?limit=${PAGE}`)])
+    Promise.all([api('/sellers/me'), fetchPage(null)])
       .then(([s, p]) => {
         setVerified(s.seller.verification === 'VERIFIED');
         setItems(p.items);
@@ -31,187 +37,206 @@ export default function SellerProducts() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [fetchPage]);
 
-  const replace = (p) => setItems((list) => list.map((x) => (x.id === p.id ? p : x)));
-
-  const saved = (product) => {
-    if (editing === 'new') setItems((list) => [product, ...list]);
-    else replace(product);
-    setEditing(null);
-  };
-
-  const run = async (id, fn) => {
-    setError('');
-    setNotice('');
-    setBusyId(id);
+  const loadMore = async () => {
+    setMoreBusy(true);
     try {
-      await fn();
+      const p = await fetchPage(nextCursor);
+      setItems((prev) => [...prev, ...p.items]);
+      setNextCursor(p.nextCursor);
     } catch (e) {
       setError(e.message);
+    } finally {
+      setMoreBusy(false);
+    }
+  };
+
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const resetForm = () => { setForm(EMPTY); setEditingId(null); };
+
+  const startEdit = (p) => {
+    setEditingId(p.id);
+    setForm({
+      name: p.name,
+      description: p.description || '',
+      price: (p.pricePaise / 100).toString(),
+      stock: String(p.stock),
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(''); setNotice('');
+    const name = form.name.trim();
+    const pricePaise = Math.round(Number(form.price) * 100);
+    const stock = Number(form.stock);
+    if (name.length < 2) return setError('Name must be at least 2 characters');
+    if (!Number.isFinite(pricePaise) || pricePaise < 1) return setError('Enter a valid price (at least ₹0.01)');
+    if (!Number.isInteger(stock) || stock < 0) return setError('Stock must be a whole number (0 or more)');
+    const body = { name, pricePaise, stock };
+    const desc = form.description.trim();
+    if (editingId || desc) body.description = desc;
+
+    setSaving(true);
+    try {
+      if (editingId) {
+        const d = await api(`/sellers/me/products/${editingId}`, { method: 'PATCH', body });
+        setItems((prev) => prev.map((x) => (x.id === editingId ? d.product : x)));
+        setNotice('Product updated');
+      } else {
+        const d = await api('/sellers/me/products', { method: 'POST', body });
+        setItems((prev) => [d.product, ...prev]);
+        setNotice('Product added. Ab image upload kar sakte ho.');
+      }
+      resetForm();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActive = async (p) => {
+    setError(''); setNotice(''); setBusyId(p.id);
+    try {
+      const d = await api(`/sellers/me/products/${p.id}`, { method: 'PATCH', body: { isActive: !p.isActive } });
+      setItems((prev) => prev.map((x) => (x.id === p.id ? d.product : x)));
+    } catch (err) {
+      setError(err.message);
     } finally {
       setBusyId('');
     }
   };
 
-  const loadMore = async () => {
-    setError('');
-    setMore(true);
-    try {
-      const d = await api(`/sellers/me/products?limit=${PAGE}&cursor=${encodeURIComponent(nextCursor)}`);
-      setItems((list) => [...list, ...d.items]);
-      setNextCursor(d.nextCursor);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setMore(false);
-    }
-  };
-
-  const toggle = (p) =>
-    run(p.id, async () => {
-      const d = await api(`/sellers/me/products/${p.id}`, { method: 'PATCH', body: { isActive: !p.isActive } });
-      replace(d.product);
-    });
-
-  const remove = (p) => {
+  const remove = async (p) => {
     if (!window.confirm(`Delete "${p.name}"?`)) return;
-    run(p.id, async () => {
-      const d = await api(`/sellers/me/products/${p.id}`, { method: 'DELETE' });
-      if (d.hidden) {
-        replace({ ...p, isActive: false });
-        setNotice('This product is part of past orders, so it was hidden instead of deleted.');
+    setError(''); setNotice(''); setBusyId(p.id);
+    try {
+      const r = await api(`/sellers/me/products/${p.id}`, { method: 'DELETE' });
+      if (r.deleted) {
+        setItems((prev) => prev.filter((x) => x.id !== p.id));
+        if (editingId === p.id) resetForm();
       } else {
-        setItems((list) => list.filter((x) => x.id !== p.id));
+        setItems((prev) => prev.map((x) => (x.id === p.id ? { ...x, isActive: false } : x)));
+        setNotice('Ye product purane orders mein hai, isliye delete nahi hua. Sirf hide kar diya.');
       }
-    });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId('');
+    }
   };
 
-  const upload = (p, file) => {
+  const uploadImage = async (p, file) => {
     if (!file) return;
-    if (!OK_TYPES.includes(file.type)) {
-      setError('Only JPEG, PNG or WebP images are allowed');
-      return;
+    setError(''); setNotice('');
+    if (!OK_TYPES.includes(file.type)) return setError('Only JPEG, PNG or WebP images are allowed');
+    if (file.size > MAX_BYTES) return setError('Image must be 5 MB or smaller');
+    const fd = new FormData();
+    fd.append('file', file);
+    setBusyId(p.id);
+    try {
+      const d = await api(`/sellers/me/products/${p.id}/image`, { method: 'POST', form: fd });
+      setItems((prev) => prev.map((x) => (x.id === p.id ? d.product : x)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId('');
     }
-    if (file.size > MAX_BYTES) {
-      setError('Image must be 5 MB or smaller');
-      return;
-    }
-    run(p.id, async () => {
-      const form = new FormData();
-      form.append('file', file);
-      const d = await api(`/sellers/me/products/${p.id}/image`, { method: 'POST', form });
-      replace(d.product);
-    });
   };
+
+  const input = 'w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
 
   return (
-    <PageShell
-      title="Products"
-      subtitle="What your shop sells."
-      action={
-        <Button
-          variant="secondary"
-          disabled={!verified || editing !== null}
-          onClick={() => {
-            setNotice('');
-            setEditing('new');
-          }}
-        >
-          Add product
-        </Button>
-      }
-    >
+    <PageShell title="Products" subtitle="Apni shop ke products add aur manage karo.">
       <div className="space-y-4">
-        {verified === false && (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Your shop must be verified by an admin before you can add products.
-          </p>
-        )}
         {error && (
           <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
         )}
         {notice && (
-          <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">{notice}</p>
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>
+        )}
+        {verified === false && (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Product add karne ke liye pehle shop verify hona zaroori hai. Profile aur documents poore karo, phir admin verify karega.
+          </p>
         )}
 
-        {editing === 'new' && (
-          <Card title="New product">
-            <ProductForm onDone={saved} onCancel={() => setEditing(null)} />
-          </Card>
-        )}
+        <Card title={editingId ? 'Edit product' : 'Add product'}>
+          <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
+            <input className={input} placeholder="Product name" maxLength={120} value={form.name} onChange={setField('name')} />
+            <div className="grid grid-cols-2 gap-3">
+              <input className={input} placeholder="Price (₹)" inputMode="decimal" value={form.price} onChange={setField('price')} />
+              <input className={input} placeholder="Stock" inputMode="numeric" value={form.stock} onChange={setField('stock')} />
+            </div>
+            <textarea className={`${input} md:col-span-2`} rows={3} maxLength={2000} placeholder="Description (optional)" value={form.description} onChange={setField('description')} />
+            <div className="flex gap-2 md:col-span-2">
+              <Button type="submit" loading={saving} disabled={!editingId && verified === false}>
+                {editingId ? 'Save changes' : 'Add product'}
+              </Button>
+              {editingId && (
+                <Button type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
+              )}
+            </div>
+          </form>
+        </Card>
 
-        {loading && <Card><p className="text-sm text-slate-500">Loading...</p></Card>}
-        {!loading && items.length === 0 && editing !== 'new' && (
-          <Card><p className="text-sm text-slate-500">No products yet.</p></Card>
-        )}
-
-        {items.map((p) => (
-          <Card key={p.id}>
-            {editing === p.id ? (
-              <ProductForm product={p} onDone={saved} onCancel={() => setEditing(null)} />
-            ) : (
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-slate-50 ring-1 ring-slate-100">
-                  {p.imageUrl ? (
-                    <img src={assetUrl(p.imageUrl)} alt={p.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="flex h-full items-center justify-center text-xs text-slate-400">No image</span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-base font-semibold text-slate-900">{p.name}</h3>
-                    {!p.isActive && (
-                      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">Hidden</span>
-                    )}
-                    {!p.inStock && (
-                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Out of stock</span>
-                    )}
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading...</p>
+        ) : items.length === 0 ? (
+          <p className="rounded-2xl bg-white p-6 text-center text-sm text-slate-500 ring-1 ring-slate-100">Abhi koi product nahi hai.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {items.map((p) => {
+              const busy = busyId === p.id;
+              const img = assetUrl(p.imageUrl);
+              return (
+                <div key={p.id} className="flex gap-4 rounded-3xl bg-white p-4 shadow-xl shadow-indigo-100/60 ring-1 ring-slate-100">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-50 ring-1 ring-slate-100">
+                    {img ? <img src={img} alt={p.name} className="h-full w-full object-cover" /> : <span className="text-xs text-slate-400">No image</span>}
                   </div>
-                  <p className="mt-1 text-lg font-bold text-indigo-700">{formatPaise(p.pricePaise)}</p>
-                  <p className="text-sm text-slate-500">Stock: {p.stock}</p>
-                  {p.description && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{p.description}</p>}
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button variant="secondary" disabled={busyId === p.id || editing !== null} onClick={() => setEditing(p.id)}>
-                      Edit
-                    </Button>
-                    <Button variant="ghost" loading={busyId === p.id} onClick={() => toggle(p)}>
-                      {p.isActive ? 'Hide' : 'Show'}
-                    </Button>
-                    <Button variant="danger" disabled={busyId === p.id} onClick={() => remove(p)}>
-                      Delete
-                    </Button>
-                    <label
-                      className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                        busyId === p.id
-                          ? 'cursor-not-allowed bg-slate-100 text-slate-400'
-                          : 'cursor-pointer bg-white text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50'
-                      }`}
-                    >
-                      {p.imageUrl ? 'Change image' : 'Add image'}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        disabled={busyId === p.id}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          e.target.value = '';
-                          upload(p, f);
-                        }}
-                      />
-                    </label>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="truncate font-bold text-slate-800">{p.name}</h3>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${p.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {p.isActive ? 'Visible' : 'Hidden'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-indigo-700">{rupees(p.pricePaise)}</p>
+                    <p className="text-xs text-slate-500">{p.inStock ? `Stock: ${p.stock}` : 'Out of stock'}</p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                      <button disabled={busy} onClick={() => startEdit(p)} className="rounded-lg px-3 py-1.5 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 disabled:opacity-50">Edit</button>
+                      <button disabled={busy} onClick={() => toggleActive(p)} className="rounded-lg px-3 py-1.5 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                        {p.isActive ? 'Hide' : 'Show'}
+                      </button>
+                      <label className={`rounded-lg px-3 py-1.5 text-slate-600 ring-1 ring-slate-200 ${busy ? 'opacity-50' : 'cursor-pointer hover:bg-slate-50'}`}>
+                        {busy ? 'Wait...' : img ? 'Change image' : 'Add image'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          disabled={busy}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            uploadImage(p, f);
+                          }}
+                        />
+                      </label>
+                      <button disabled={busy} onClick={() => remove(p)} className="rounded-lg px-3 py-1.5 text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">Delete</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </Card>
-        ))}
+              );
+            })}
+          </div>
+        )}
 
         {nextCursor && (
           <div className="text-center">
-            <Button variant="secondary" loading={more} onClick={loadMore}>Load more</Button>
+            <Button variant="secondary" loading={moreBusy} onClick={loadMore}>Load more</Button>
           </div>
         )}
       </div>

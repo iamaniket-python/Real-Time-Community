@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { useAuth } from '../context/auth-context';
+import { useAuth } from '../../context/auth-context';
 
 const link = ({ isActive }) =>
   `rounded-xl px-4 py-2 text-sm font-semibold transition ${
@@ -20,6 +20,7 @@ export default function SellerLayout() {
           <NavLink to="/seller/profile" className={link}>Shop profile</NavLink>
           <NavLink to="/seller/documents" className={link}>Documents & photos</NavLink>
           <NavLink to="/seller/products" className={link}>Products</NavLink>
+          <NavLink to="/seller/orders" className={link}>Orders</NavLink>
           <button
             onClick={logout}
             className="ml-auto rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
