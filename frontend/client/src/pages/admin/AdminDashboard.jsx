@@ -10,6 +10,7 @@ const ACTIVE = ['PENDING', 'SEARCHING', 'ACCEPTED', 'ARRIVING', 'IN_PROGRESS'];
 const sum = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
 const ACTIONS = [
   { to: '/admin/helpers', icon: '🧑‍🔧', title: 'Helpers', text: 'Verify, reject or suspend', grad: 'from-indigo-500 to-violet-600' },
+  { to: '/admin/sellers', icon: '🏪', title: 'Sellers', text: 'Verify shops and documents', grad: 'from-sky-500 to-cyan-600' },
   { to: '/admin/reports', icon: '🚩', title: 'Reports', text: 'From reviewing to resolved', grad: 'from-rose-500 to-pink-600' },
   { to: '/admin/categories', icon: '🗂️', title: 'Categories', text: 'Add, rename or deactivate', grad: 'from-amber-400 to-orange-500' },
   { to: '/admin/stats', icon: '📊', title: 'Stats', text: 'Platform numbers at a glance', grad: 'from-emerald-500 to-teal-600' },

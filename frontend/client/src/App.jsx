@@ -34,6 +34,8 @@ import SellerOrders from './pages/seller/SellerOrders';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHelpers from './pages/admin/AdminHelpers';
 import AdminHelperDetail from './pages/admin/AdminHelperDetail';
+import AdminSellers from './pages/admin/AdminSellers';
+import AdminSellerDetail from './pages/admin/AdminSellerDetail';
 import AdminReports from './pages/admin/AdminReports';
 import AdminCategories from './pages/admin/AdminCategories';
 import AdminStats from './pages/admin/AdminStats';
@@ -86,6 +88,8 @@ export default function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/helpers" element={<AdminHelpers />} />
             <Route path="/admin/helpers/:id" element={<AdminHelperDetail />} />
+            <Route path="/admin/sellers" element={<AdminSellers />} />
+            <Route path="/admin/sellers/:id" element={<AdminSellerDetail />} />
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/categories" element={<AdminCategories />} />
             <Route path="/admin/stats" element={<AdminStats />} />
