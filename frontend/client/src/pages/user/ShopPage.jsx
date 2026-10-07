@@ -17,6 +17,8 @@ export default function ShopPage() {
   const [pCursor, setPCursor] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [rCursor, setRCursor] = useState(null);
+  const [cart, setCart] = useState(null);
+  const [cartBusy, setCartBusy] = useState('');
   const [loading, setLoading] = useState(true);
   const [pBusy, setPBusy] = useState(false);
   const [rBusy, setRBusy] = useState(false);
@@ -43,6 +45,8 @@ export default function ShopPage() {
       })
       .catch((e) => !stale && setError(e.message))
       .finally(() => !stale && setLoading(false));
+    // cart load fail ho to bhi shop page chalna chahiye
+    api('/cart').then((d) => !stale && setCart(d.cart)).catch(() => {});
     return () => { stale = true; };
   }, [id, page]);
 
@@ -60,6 +64,28 @@ export default function ShopPage() {
     }
   };
 
+  const qtyOf = (pid) => cart?.items.find((i) => i.productId === pid)?.quantity || 0;
+
+  const setQty = async (p, quantity, replace = false) => {
+    setError('');
+    setCartBusy(p.id);
+    try {
+      const body = { productId: p.id, quantity };
+      if (replace) body.replace = true;
+      const d = await api('/cart/items', { method: 'PUT', body });
+      setCart(d.cart);
+    } catch (e) {
+      if (e.errorCode === 'CART_OTHER_SHOP' && !replace
+        && window.confirm('Aapke cart mein dusri shop ke items hain. Unhe hata ke is shop ka item add karein?')) {
+        setCartBusy('');
+        return setQty(p, quantity, true);
+      }
+      setError(e.message);
+    } finally {
+      setCartBusy('');
+    }
+  };
+
   if (loading) return <PageShell title="Shop"><p className="text-sm text-slate-500">Loading...</p></PageShell>;
   if (!shop) {
     return (
@@ -73,11 +99,19 @@ export default function ShopPage() {
   }
 
   const big = assetUrl(shop.gallery[photo]?.url);
+  const cartCount = cart ? cart.items.reduce((a, i) => a + i.quantity, 0) : 0;
 
   return (
     <PageShell title={shop.shopName} subtitle={shop.address}>
       <div className="space-y-5">
-        <Link to="/shops" className="text-sm font-semibold text-indigo-700">← Nearby shops</Link>
+        <div className="flex items-center justify-between">
+          <Link to="/shops" className="text-sm font-semibold text-indigo-700">← Nearby shops</Link>
+          {cartCount > 0 && (
+            <Link to="/cart" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200">
+              View cart ({cartCount})
+            </Link>
+          )}
+        </div>
 
         {error && (
           <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
@@ -118,6 +152,8 @@ export default function ShopPage() {
             <div className="grid gap-4 md:grid-cols-2">
               {products.map((p) => {
                 const img = assetUrl(p.imageUrl);
+                const q = qtyOf(p.id);
+                const busy = cartBusy === p.id;
                 return (
                   <div key={p.id} className="flex gap-4 rounded-3xl bg-white p-4 shadow-xl shadow-indigo-100/60 ring-1 ring-slate-100">
                     <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-50 ring-1 ring-slate-100">
@@ -128,6 +164,21 @@ export default function ShopPage() {
                       <p className="text-sm font-semibold text-indigo-700">{rupees(p.pricePaise)}</p>
                       <p className={`text-xs ${p.inStock ? 'text-slate-500' : 'text-red-500'}`}>{p.inStock ? `In stock: ${p.stock}` : 'Out of stock'}</p>
                       {p.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{p.description}</p>}
+                      {p.inStock && (
+                        <div className="mt-2">
+                          {q === 0 ? (
+                            <button disabled={busy} onClick={() => setQty(p, 1)} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                              {busy ? 'Wait...' : 'Add to cart'}
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm font-semibold">
+                              <button disabled={busy} onClick={() => setQty(p, q - 1)} className="h-8 w-8 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50">−</button>
+                              <span className="w-6 text-center">{q}</span>
+                              <button disabled={busy || q >= 99} onClick={() => setQty(p, q + 1)} className="h-8 w-8 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50">+</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

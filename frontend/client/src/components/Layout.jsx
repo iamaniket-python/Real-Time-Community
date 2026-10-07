@@ -8,6 +8,7 @@ const LINKS = {
     ['/requests/new', 'Ask for help'],
     ['/requests', 'My requests'],
     ['/shops', 'Nearby shops'],
+    ['/cart', 'Cart'],
   ],
   HELPER: [
     ['/helper', 'Dashboard'],
