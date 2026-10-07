@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api/client';
 import PageShell from '../../components/ui/PageShell';
 import Card from '../../components/ui/Card';
@@ -9,6 +9,13 @@ const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const EMPTY = { name: '', description: '', price: '', stock: '' };
 const rupees = (paise) => `₹${(paise / 100).toFixed(2)}`;
+
+// returns an error text, or '' if the file is fine
+const checkImage = (file) => {
+  if (!OK_TYPES.includes(file.type)) return 'Only JPEG, PNG or WebP images are allowed';
+  if (file.size > MAX_BYTES) return 'Image must be 5 MB or smaller';
+  return '';
+};
 
 export default function SellerProducts() {
   const [verified, setVerified] = useState(null);
@@ -22,6 +29,11 @@ export default function SellerProducts() {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState('');
+  const [file, setFile] = useState(null);
+  const [fileKey, setFileKey] = useState(0);
+
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   const fetchPage = useCallback(async (cursor) => {
     const qs = `limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
@@ -53,7 +65,27 @@ export default function SellerProducts() {
   };
 
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const resetForm = () => { setForm(EMPTY); setEditingId(null); };
+  const clearFile = () => { setFile(null); setFileKey((k) => k + 1); };
+  const resetForm = () => { setForm(EMPTY); setEditingId(null); clearFile(); };
+
+  const pickFile = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const bad = checkImage(f);
+    if (bad) {
+      setError(bad);
+      clearFile();
+      return;
+    }
+    setError('');
+    setFile(f);
+  };
+
+  const sendImage = (productId, f) => {
+    const fd = new FormData();
+    fd.append('file', f);
+    return api(`/sellers/me/products/${productId}/image`, { method: 'POST', form: fd });
+  };
 
   const startEdit = (p) => {
     setEditingId(p.id);
@@ -63,6 +95,7 @@ export default function SellerProducts() {
       price: (p.pricePaise / 100).toString(),
       stock: String(p.stock),
     });
+    clearFile();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -81,14 +114,29 @@ export default function SellerProducts() {
 
     setSaving(true);
     try {
-      if (editingId) {
-        const d = await api(`/sellers/me/products/${editingId}`, { method: 'PATCH', body });
-        setItems((prev) => prev.map((x) => (x.id === editingId ? d.product : x)));
-        setNotice('Product updated');
+      const wasEditing = !!editingId;
+      const d = wasEditing
+        ? await api(`/sellers/me/products/${editingId}`, { method: 'PATCH', body })
+        : await api('/sellers/me/products', { method: 'POST', body });
+      let product = d.product;
+
+      // product is saved by now; an image failure must not hide that
+      let imgErr = '';
+      if (file) {
+        try {
+          product = (await sendImage(product.id, file)).product;
+        } catch (err) {
+          imgErr = err.message;
+        }
+      }
+
+      setItems((prev) => (wasEditing
+        ? prev.map((x) => (x.id === product.id ? product : x))
+        : [product, ...prev]));
+      if (imgErr) {
+        setError(`Product save ho gaya, par image upload nahi hui: ${imgErr}. Card pe "Add image" se dobara try karo.`);
       } else {
-        const d = await api('/sellers/me/products', { method: 'POST', body });
-        setItems((prev) => [d.product, ...prev]);
-        setNotice('Product added. Ab image upload kar sakte ho.');
+        setNotice(wasEditing ? 'Product updated' : 'Product added');
       }
       resetForm();
     } catch (err) {
@@ -129,16 +177,14 @@ export default function SellerProducts() {
     }
   };
 
-  const uploadImage = async (p, file) => {
-    if (!file) return;
+  const uploadImage = async (p, f) => {
+    if (!f) return;
     setError(''); setNotice('');
-    if (!OK_TYPES.includes(file.type)) return setError('Only JPEG, PNG or WebP images are allowed');
-    if (file.size > MAX_BYTES) return setError('Image must be 5 MB or smaller');
-    const fd = new FormData();
-    fd.append('file', file);
+    const bad = checkImage(f);
+    if (bad) return setError(bad);
     setBusyId(p.id);
     try {
-      const d = await api(`/sellers/me/products/${p.id}/image`, { method: 'POST', form: fd });
+      const d = await sendImage(p.id, f);
       setItems((prev) => prev.map((x) => (x.id === p.id ? d.product : x)));
     } catch (err) {
       setError(err.message);
@@ -172,6 +218,34 @@ export default function SellerProducts() {
               <input className={input} placeholder="Stock" inputMode="numeric" value={form.stock} onChange={setField('stock')} />
             </div>
             <textarea className={`${input} md:col-span-2`} rows={3} maxLength={2000} placeholder="Description (optional)" value={form.description} onChange={setField('description')} />
+
+            <div className="flex items-center gap-3 md:col-span-2">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-50 ring-1 ring-slate-100">
+                {preview ? <img src={preview} alt="Preview" className="h-full w-full object-cover" /> : <span className="text-xs text-slate-400">No image</span>}
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap gap-2">
+                  <label className="cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50">
+                    {file ? 'Change image' : editingId ? 'New image (optional)' : 'Choose image (optional)'}
+                    <input
+                      key={fileKey}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={saving}
+                      onChange={pickFile}
+                    />
+                  </label>
+                  {file && (
+                    <button type="button" onClick={clearFile} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">JPEG, PNG ya WebP, max 5 MB. Ek product ki ek image.</p>
+              </div>
+            </div>
+
             <div className="flex gap-2 md:col-span-2">
               <Button type="submit" loading={saving} disabled={!editingId && verified === false}>
                 {editingId ? 'Save changes' : 'Add product'}
