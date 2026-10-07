@@ -17,6 +17,7 @@ import RequestDetail from './pages/user/RequestDetail';
 import NearbyShops from './pages/user/NearbyShops';
 import ShopPage from './pages/user/ShopPage';
 import CartPage from './pages/user/CartPage';
+import CheckoutPage from './pages/user/CheckoutPage';
 import Probe from './pages/user/Probe';
 import ProbeNotif from './pages/user/ProbeNotif';
 import HelperDashboard from './pages/helper/HelperDashboard';
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/shops" element={<NearbyShops />} />
           <Route path="/shops/:id" element={<ShopPage />} />
           <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/user/probe" element={<Probe />} />
           <Route path="/user/probe-notif" element={<ProbeNotif />} />
         </Route>
