@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', role: 'USER' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
 
   if (user) return <Navigate to={roleHome(user.role)} replace />;
 
@@ -53,7 +54,10 @@ export default function RegisterPage() {
           <input className={input} type="tel" autoComplete="tel" value={form.phone} onChange={set('phone')} />
         </label>
         <label className="block text-sm font-medium text-ink">Password
-          <input className={input} type="password" autoComplete="new-password" minLength={10} maxLength={72} value={form.password} onChange={set('password')} required />
+          <div className="relative">
+            <input className={`${input} pr-16`} type={show ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={72} value={form.password} onChange={set('password')} required />
+            <button type="button" onClick={() => setShow(!show)} className="absolute inset-y-0 right-4 text-sm font-semibold text-rosewood hover:text-rosewood-dark">{show ? 'Hide' : 'Show'}</button>
+          </div>
           <span className="mt-1 block text-xs font-normal text-ink-soft">10-72 characters, with at least one letter and one digit.</span>
         </label>
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
