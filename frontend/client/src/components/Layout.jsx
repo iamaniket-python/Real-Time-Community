@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/auth-context';
 import NotificationBell from './NotificationBell';
+import SearchBar from './SearchBar';
 import Button from './ui/Button';
 
 const LINKS = {
@@ -49,6 +50,11 @@ export default function Layout() {
             Log out
           </Button>
         </div>
+        {user?.role === 'USER' && (
+          <div className="mx-auto max-w-5xl px-4 pb-3">
+            <SearchBar />
+          </div>
+        )}
         {items.length > 0 && (
           <div className="overflow-x-auto border-t border-slate-100 sm:hidden">
             <div className="flex w-max gap-1 px-3 py-2">{items}</div>

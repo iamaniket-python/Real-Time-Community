@@ -16,6 +16,7 @@ import MyRequests from './pages/user/MyRequests';
 import RequestDetail from './pages/user/RequestDetail';
 import NearbyShops from './pages/user/NearbyShops';
 import ShopPage from './pages/user/ShopPage';
+import SearchPage from './pages/user/SearchPage';
 import CartPage from './pages/user/CartPage';
 import CheckoutPage from './pages/user/CheckoutPage';
 import MyOrdersPage from './pages/user/MyOrdersPage';
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/requests/:id" element={<RequestDetail />} />
           <Route path="/shops" element={<NearbyShops />} />
           <Route path="/shops/:id" element={<ShopPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<MyOrdersPage />} />
