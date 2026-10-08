@@ -52,7 +52,7 @@ export default function Layout() {
         </div>
         {user?.role === 'USER' && (
           <div className="mx-auto max-w-5xl px-4 pb-3">
-            <SearchBar />
+          
           </div>
         )}
         {items.length > 0 && (
@@ -63,6 +63,7 @@ export default function Layout() {
       </nav>
       <div className="flex-1">
         <Outlet />
+          <SearchBar />
       </div>
     </div>
   );
