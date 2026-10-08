@@ -4,7 +4,7 @@ import { useAuth } from '../../context/auth-context';
 import { roleHome } from '../../routes/rolehome';
 import AuthLayout from '../../components/AuthLayout';
 
-const input = 'mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100';
+const input = 'mt-1.5 w-full rounded-xl border border-petal bg-blush/40 px-4 py-3 text-ink outline-none transition placeholder:text-ink-soft/60 focus:border-rosewood focus:bg-white focus:ring-4 focus:ring-petal';
 const roles = [['USER', '🙋 I need help'], ['HELPER', '🤝 I want to help']];
 
 export default function RegisterPage() {
@@ -33,36 +33,36 @@ export default function RegisterPage() {
   };
 
   return (
-    <AuthLayout title="Create account" subtitle="Join your community in under a minute.">
+    <AuthLayout variant="user" title="Create account" subtitle="Join your community in under a minute.">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           {roles.map(([v, label]) => (
             <button key={v} type="button" onClick={() => setForm({ ...form, role: v })}
-              className={`rounded-xl border-2 px-3 py-3 text-sm font-semibold transition ${form.role === v ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+              className={`rounded-xl border-2 px-3 py-3 text-sm font-semibold transition ${form.role === v ? 'border-rosewood bg-blush text-rosewood' : 'border-petal text-ink-soft hover:border-rosewood/60'}`}>
               {label}
             </button>
           ))}
         </div>
-        <label className="block text-sm font-medium text-slate-700">Full name
+        <label className="block text-sm font-medium text-ink">Full name
           <input className={input} autoComplete="name" value={form.name} onChange={set('name')} required />
         </label>
-        <label className="block text-sm font-medium text-slate-700">Email
+        <label className="block text-sm font-medium text-ink">Email
           <input className={input} type="email" autoComplete="email" value={form.email} onChange={set('email')} required />
         </label>
-        <label className="block text-sm font-medium text-slate-700">Phone <span className="font-normal text-slate-400">(optional)</span>
+        <label className="block text-sm font-medium text-ink">Phone <span className="font-normal text-ink-soft">(optional)</span>
           <input className={input} type="tel" autoComplete="tel" value={form.phone} onChange={set('phone')} />
         </label>
-        <label className="block text-sm font-medium text-slate-700">Password
+        <label className="block text-sm font-medium text-ink">Password
           <input className={input} type="password" autoComplete="new-password" minLength={10} maxLength={72} value={form.password} onChange={set('password')} required />
-          <span className="mt-1 block text-xs font-normal text-slate-400">10-72 characters, with at least one letter and one digit.</span>
+          <span className="mt-1 block text-xs font-normal text-ink-soft">10-72 characters, with at least one letter and one digit.</span>
         </label>
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-        <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 font-semibold text-white shadow-lg shadow-indigo-200 transition hover:brightness-110 disabled:opacity-60">
+        <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-rosewood py-3 font-semibold text-white shadow-lg shadow-petal transition hover:bg-rosewood-dark disabled:opacity-60">
           {busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
           {busy ? 'Creating account...' : 'Create account'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-600">Already registered? <Link to="/login" className="font-semibold text-indigo-600 hover:underline">Login</Link></p>
+      <p className="mt-6 text-center text-sm text-ink-soft">Already registered? <Link to="/login" className="font-semibold text-rosewood hover:underline">Login</Link></p>
     </AuthLayout>
   );
 }
