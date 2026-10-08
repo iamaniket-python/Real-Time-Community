@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+  /* Aapke diye hue colors */
+  --color-blush: #FBEFEF;
+  --color-petal: #F5CBCB;
+
+  /* Gehra accent: buttons/links ke liye (white text iske upar padha jaata hai) */
+  --color-rosewood: #B83A57;
+  --color-rosewood-dark: #9F2F49;
+
+  /* Text colors: halke pink background par padhne layak */
+  --color-ink: #2B2024;
+  --color-ink-soft: #6B5A60;
+}
