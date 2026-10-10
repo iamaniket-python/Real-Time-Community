@@ -18,10 +18,20 @@ export const registerSchema = z.object({
         .regex(/^\+?[0-9]{7,15}$/, 'Invalid phone number')
         .optional(),
       password,
-      // ADMIN can never be self-registered. A SELLER starts unverified.
-      role: z.enum(['USER', 'HELPER', 'SELLER']).default('USER'),
+      // ADMIN can never be self-registered. SELLER and DELIVERY start unverified.
+      role: z.enum(['USER', 'HELPER', 'SELLER', 'DELIVERY']).default('USER'),
     })
-    .strict(), // rejects unknown fields
+    .strict() // rejects unknown fields
+    // The customer calls the partner with a tel: link, so a partner must have a number
+    .superRefine((b, ctx) => {
+      if (b.role === 'DELIVERY' && !b.phone) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['phone'],
+          message: 'Phone number is required for delivery partners',
+        });
+      }
+    }),
 });
 
 export const loginSchema = z.object({

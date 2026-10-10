@@ -5,12 +5,14 @@ import * as o from '../controllers/admin-ops.controller.js';
 import * as d from '../controllers/admin-helper-detail.controller.js';
 import * as ac from '../controllers/admin-chat.controller.js';
 import * as sc from '../controllers/admin-seller.controller.js';
+import * as dc from '../controllers/admin-delivery.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { listHelpersSchema, helperActionSchema, userActionSchema } from '../validators/admin.validator.js';
 import { listReportsSchema, updateReportSchema, auditLogSchema } from '../validators/admin-reports.validator.js';
 import { createCategorySchema, updateCategorySchema, activeRequestsSchema } from '../validators/admin-ops.validator.js';
 import { listSellersSchema, sellerIdSchema, sellerActionSchema } from '../validators/admin-seller.validator.js';
+import { listPartnersSchema, partnerIdSchema, partnerActionSchema } from '../validators/admin-delivery.validator.js';
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -30,6 +32,12 @@ router.get('/sellers/:id', validate(sellerIdSchema), wrap(sc.detail));
 router.post('/sellers/:id/verify',  validate(sellerActionSchema), wrap(sc.action('verify')));
 router.post('/sellers/:id/reject',  validate(sellerActionSchema), wrap(sc.action('reject')));
 router.post('/sellers/:id/suspend', validate(sellerActionSchema), wrap(sc.action('suspend')));
+
+router.get('/delivery-partners', validate(listPartnersSchema), wrap(dc.list));
+router.get('/delivery-partners/:id', validate(partnerIdSchema), wrap(dc.detail));
+router.post('/delivery-partners/:id/verify',  validate(partnerActionSchema), wrap(dc.action('verify')));
+router.post('/delivery-partners/:id/reject',  validate(partnerActionSchema), wrap(dc.action('reject')));
+router.post('/delivery-partners/:id/suspend', validate(partnerActionSchema), wrap(dc.action('suspend')));
 
 router.post('/users/:id/block',     validate(userActionSchema),   wrap(c.userAction('block')));
 router.post('/users/:id/unblock',   validate(userActionSchema),   wrap(c.userAction('unblock')));

@@ -47,12 +47,15 @@ export async function register({ name, email, phone, password, role }, userAgent
     );
     const user = rows[0];
 
-    // Helpers and sellers get an (unverified) profile immediately
+    // Helpers, sellers and delivery partners get an (unverified) profile immediately
     if (role === 'HELPER') {
       await c.query('INSERT INTO helper_profiles (user_id) VALUES ($1)', [user.id]);
     }
     if (role === 'SELLER') {
       await c.query('INSERT INTO seller_profiles (user_id) VALUES ($1)', [user.id]);
+    }
+    if (role === 'DELIVERY') {
+      await c.query('INSERT INTO delivery_partners (user_id) VALUES ($1)', [user.id]);
     }
     return { user: publicUser(user), ...(await issueTokens(c, user, userAgent)) };
   });
